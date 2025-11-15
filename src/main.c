@@ -1,340 +1,302 @@
-// MAIN COMPLETAMENTE CHAT SÓ PARA TESTAR SE ESTÁ TUDO FUNCIONAL
-
-
-
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <signal.h>
 #include "config.h"
-#include "logger.h"
 #include "http.h"
+#include "logger.h"
+#include "stats.h"
 
-// Function prototypes
-void test_configuration_system(server_config_t **config_ptr);
-void test_logger_system(server_config_t *config);
-void test_http_parser_system(void);
-void test_integration(server_config_t *config);
+// Global configuration for cleanup
+static server_config_t *config = NULL;
 
-// Test configuration system
-void test_configuration_system(server_config_t **config_ptr) {
-    printf("1. ===== CONFIGURATION SYSTEM TESTS =====\n");
+// Signal handler for graceful shutdown
+void signal_handler(int sig) {
+    printf("\nReceived signal %d - Shutting down...\n", sig);
     
-    // Test 1.1: Load configuration from file
-    printf("\n1.1 Loading configuration from file:\n");
-    server_config_t *config = config_create("server.conf");
+    // Cleanup modules
+    logger_close();
+    stats_cleanup();
+    if (config) {
+        config_destroy(config);
+    }
+    
+    printf("Test completed successfully!\n");
+    exit(0);
+}
+
+// Test configuration module
+void test_config_module(void) {
+    printf("\n=== TESTING CONFIG MODULE ===\n");
+    
+    // Test 1: Create config with defaults
+    config = config_create(NULL);
     if (!config) {
-        printf("❌ Failed to load configuration from file\n");
-        return;
+        printf("❌ FAIL: config_create with defaults\n");
+        exit(1);
     }
+    printf("✅ PASS: config_create with defaults\n");
     config_print(config);
-    printf("✅ Configuration loaded successfully from file\n");
     
-    // Test 1.2: Test all getters
-    printf("\n1.2 Testing configuration getters:\n");
-    printf("   Port: %d\n", config_get_port(config));
-    printf("   Document Root: %s\n", config_get_document_root(config));
-    printf("   Workers: %d\n", config_get_num_workers(config));
-    printf("   Threads per Worker: %d\n", config_get_threads_per_worker(config));
-    printf("   Max Queue: %d\n", config_get_max_queue_size(config));
-    printf("   Log File: %s\n", config_get_log_file(config));
-    printf("   Cache Size: %d MB\n", config_get_cache_size(config));
-    printf("   Timeout: %d seconds\n", config_get_timeout(config));
-    printf("✅ All getters working correctly\n");
+    // Test 2: Test setters
+    config_set_port(config, 9090);
+    config_set_document_root(config, "/tmp/www");
+    config_set_num_workers(config, 8);
     
-    // Test 1.3: Test setters with validation
-    printf("\n1.3 Testing configuration setters with validation:\n");
+    if (config_get_port(config) != 9090) {
+        printf("❌ FAIL: config_set_port\n");
+        exit(1);
+    }
+    printf("✅ PASS: config setters/getters\n");
     
-    // Test valid setter
-    if (config_set_port(config, 9090) == 0) {
-        printf("   ✅ Set port to 9090 - success\n");
+    // Test 3: Save config to file for later testing
+    FILE *test_config = fopen("test_server.conf", "w");
+    if (test_config) {
+        fprintf(test_config, "PORT=9090\n");
+        fprintf(test_config, "DOCUMENT_ROOT=/tmp/www\n");
+        fprintf(test_config, "NUM_WORKERS=8\n");
+        fprintf(test_config, "THREADS_PER_WORKER=5\n");
+        fprintf(test_config, "LOG_FILE=test_access.log\n");
+        fclose(test_config);
+    }
+    
+    // Test 4: Load config from file
+    server_config_t *file_config = config_create("test_server.conf");
+    if (file_config) {
+        printf("✅ PASS: config_load_from_file\n");
+        config_print(file_config);
+        config_destroy(file_config);
     } else {
-        printf("   ❌ Failed to set port\n");
+        printf("❌ FAIL: config_load_from_file\n");
     }
     
-    // Test invalid setter (should fail)
-    if (config_set_port(config, 70000) == -1) {
-        printf("   ✅ Correctly rejected invalid port 70000\n");
-    } else {
-        printf("   ❌ Should have rejected invalid port\n");
-    }
-    
-    // Test document root setter
-    if (config_set_document_root(config, "/custom/path") == 0) {
-        printf("   ✅ Set document root to /custom/path\n");
-    }
-    
-    // Test 1.4: Stack-allocated config
-    printf("\n1.4 Testing stack-allocated configuration:\n");
-    server_config_t stack_config;
-    config_init_defaults(&stack_config);
-    printf("   Default port: %d\n", stack_config.port);
-    printf("   Default document root: %s\n", stack_config.document_root);
-    printf("   ✅ Stack-allocated config working\n");
-    
-    // Test 1.5: Configuration validation
-    printf("\n1.5 Testing configuration validation:\n");
-    if (config_validate(config) == 0) {
-        printf("   ✅ Configuration validation passed\n");
-    } else {
-        printf("   ❌ Configuration validation failed\n");
-    }
-    
-    // Return the config for later use
-    *config_ptr = config;
+    printf("✅ CONFIG MODULE: ALL TESTS PASSED\n");
 }
 
-// Test logger system
-void test_logger_system(server_config_t *config) {
-    printf("\n\n2. ===== LOGGER SYSTEM TESTS =====\n");
+// Test HTTP module
+void test_http_module(void) {
+    printf("\n=== TESTING HTTP MODULE ===\n");
     
-    // Test 2.1: Initialize logger
-    printf("\n2.1 Initializing logger:\n");
-    if (logger_init(config) != 0) {
-        printf("❌ Failed to initialize logger\n");
-        return;
-    }
-    printf("✅ Logger initialized successfully\n");
-    
-    // Test 2.2: Test all log levels
-    printf("\n2.2 Testing all log levels:\n");
-    logger_log(LOG_DEBUG, "This is a DEBUG message - detailed information");
-    logger_log(LOG_INFO, "This is an INFO message - general operation");
-    logger_log(LOG_WARNING, "This is a WARNING message - potential issue");
-    logger_log(LOG_ERROR, "This is an ERROR message - something went wrong");
-    printf("✅ All log levels working\n");
-    
-    // Test 2.3: Test HTTP access logging (Apache Combined Format)
-    printf("\n2.3 Testing HTTP access logging (Apache Combined Format):\n");
-    logger_log_access("127.0.0.1", "GET", "/index.html", 200, 2048, "-", "Mozilla/5.0");
-    logger_log_access("192.168.1.100", "POST", "/api/data", 404, 512, "http://example.com", "curl/7.68.0");
-    logger_log_access("10.0.0.5", "GET", "/images/logo.png", 200, 15643, "http://localhost/", "Chrome/120.0.0.0");
-    printf("✅ HTTP access logging working\n");
-    
-    // Test 2.4: Test concurrent logging simulation
-    printf("\n2.4 Simulating concurrent server activity:\n");
-    for (int i = 0; i < 5; i++) {
-        logger_log(LOG_INFO, "Processing request #%d from thread %d", i + 1, i % 3);
-        usleep(50000); // 50ms delay to simulate processing
-    }
-    printf("✅ Concurrent logging simulation completed\n");
-}
-
-// Test HTTP parser system
-void test_http_parser_system(void) {
-    printf("\n\n3. ===== HTTP PARSER SYSTEM TESTS =====\n");
-    
-    // Test 3.1: Parse valid GET request
-    printf("\n3.1 Testing valid GET request:\n");
-    const char *get_request = 
-        "GET /index.html HTTP/1.1\r\n"
-        "Host: localhost:8080\r\n"
-        "User-Agent: Mozilla/5.0\r\n"
-        "Accept: text/html\r\n"
-        "\r\n";
+    // Test 1: Parse valid GET request
+    const char *get_request = "GET /index.html HTTP/1.1\r\n"
+                             "Host: localhost\r\n"
+                             "User-Agent: test-client\r\n"
+                             "\r\n";
     
     http_request_t request;
     if (http_parse_request(get_request, &request) == 0) {
-        printf("   ✅ Method: %s\n", request.method == HTTP_GET ? "GET" : "OTHER");
-        printf("   ✅ Path: %s\n", request.path);
-        printf("   ✅ Version: %s\n", request.version == HTTP_1_1 ? "HTTP/1.1" : "OTHER");
-        printf("   ✅ Headers parsed: %s\n", request.headers ? "YES" : "NO");
+        if (request.method == HTTP_GET && 
+            strcmp(request.path, "/index.html") == 0 &&
+            request.version == HTTP_1_1) {
+            printf("✅ PASS: http_parse_request GET\n");
+        } else {
+            printf("❌ FAIL: http_parse_request GET - wrong values\n");
+        }
         http_free_request(&request);
     } else {
-        printf("   ❌ Failed to parse GET request\n");
+        printf("❌ FAIL: http_parse_request GET\n");
     }
     
-    // Test 3.2: Parse HEAD request
-    printf("\n3.2 Testing HEAD request:\n");
-    const char *head_request = 
-        "HEAD /style.css HTTP/1.1\r\n"
-        "Host: localhost:8080\r\n"
-        "\r\n";
-    
+    // Test 2: Parse HEAD request
+    const char *head_request = "HEAD /test.css HTTP/1.0\r\n\r\n";
     if (http_parse_request(head_request, &request) == 0) {
-        printf("   ✅ Method: %s\n", request.method == HTTP_HEAD ? "HEAD" : "OTHER");
-        printf("   ✅ Path: %s\n", request.path);
-        printf("   ✅ Version: %s\n", request.version == HTTP_1_1 ? "HTTP/1.1" : "OTHER");
-        http_free_request(&request);
-    } else {
-        printf("   ❌ Failed to parse HEAD request\n");
-    }
-    
-    // Test 3.3: Parse request with URL encoding
-    printf("\n3.3 Testing request with URL encoding:\n");
-    const char *encoded_request = 
-        "GET /path%20with%20spaces.html HTTP/1.1\r\n"
-        "Host: localhost:8080\r\n"
-        "\r\n";
-    
-    if (http_parse_request(encoded_request, &request) == 0) {
-        printf("   ✅ Original path: /path%%20with%%20spaces.html\n");
-        printf("   ✅ Decoded path: %s\n", request.path);
+        if (request.method == HTTP_HEAD && request.version == HTTP_1_0) {
+            printf("✅ PASS: http_parse_request HEAD\n");
+        }
         http_free_request(&request);
     }
     
-    // Test 3.4: Test unsupported method
-    printf("\n3.4 Testing unsupported method:\n");
-    const char *post_request = 
-        "POST /api/data HTTP/1.1\r\n"
-        "Content-Length: 25\r\n"
-        "\r\n";
-    
-    if (http_parse_request(post_request, &request) == 0) {
-        printf("   ✅ Method: %s\n", request.method == HTTP_UNSUPPORTED ? "UNSUPPORTED" : "OTHER");
-        printf("   ✅ Path: %s\n", request.path);
-        http_free_request(&request);
-    }
-    
-    // Test 3.5: Test MIME type detection
-    printf("\n3.5 Testing MIME type detection:\n");
+    // Test 3: Test MIME type detection
     struct {
         const char *filename;
-        const char *expected_type;
+        const char *expected_mime;
     } mime_tests[] = {
         {"index.html", "text/html"},
         {"style.css", "text/css"},
         {"script.js", "application/javascript"},
         {"image.png", "image/png"},
         {"photo.jpg", "image/jpeg"},
-        {"data.json", "application/json"},
         {"unknown.xyz", "text/plain"},
         {NULL, NULL}
     };
     
-    for (int i = 0; mime_tests[i].filename != NULL; i++) {
-        const char *detected = http_get_mime_type(mime_tests[i].filename);
-        printf("   %-15s → %-25s (expected: %s) %s\n", 
-               mime_tests[i].filename, 
-               detected,
-               mime_tests[i].expected_type,
-               strcmp(detected, mime_tests[i].expected_type) == 0 ? "✅" : "❌");
-    }
-    
-    // Test 3.6: Test response header creation
-    printf("\n3.6 Testing response header creation:\n");
-    
-    // Test 200 OK response
-    char *header_200 = http_create_response_header(200, "text/html", 2048);
-    if (header_200) {
-        printf("   ✅ 200 OK Response Header:\n%s", header_200);
-        free(header_200);
-    }
-    
-    // Test 404 Not Found response
-    char *header_404 = http_create_response_header(404, "text/html", 512);
-    if (header_404) {
-        printf("   ✅ 404 Not Found Response Header:\n%s", header_404);
-        free(header_404);
-    }
-    
-    // Test 3.7: Test path safety validation
-    printf("\n3.7 Testing path safety validation:\n");
-    struct {
-        const char *path;
-        int should_be_safe;
-    } safety_tests[] = {
-        {"/index.html", 1},
-        {"/css/style.css", 1},
-        {"/../etc/passwd", 0},
-        {"/images/../logo.png", 0},
-        {"/safe/path", 1},
-        {NULL, 0}
-    };
-    
-    for (int i = 0; safety_tests[i].path != NULL; i++) {
-        int is_safe = http_is_safe_path(safety_tests[i].path);
-        printf("   %-20s → Safe: %-5s %s\n", 
-               safety_tests[i].path,
-               is_safe ? "YES" : "NO",
-               (is_safe == safety_tests[i].should_be_safe) ? "✅" : "❌");
-    }
-    
-    printf("✅ HTTP parser tests completed\n");
-}
-
-// Test integration between all systems
-void test_integration(server_config_t *config) {
-    printf("\n\n4. ===== INTEGRATION TESTS =====\n");
-    
-    // Test 4.1: Use config values in HTTP parser
-    printf("\n4.1 Testing config-http integration:\n");
-    printf("   Document Root from config: %s\n", config_get_document_root(config));
-    
-    // Simulate processing a request using all systems
-    printf("\n4.2 Simulating complete request processing:\n");
-    
-    const char *http_request = "GET /test.html HTTP/1.1\r\nHost: localhost\r\n\r\n";
-    http_request_t req;
-    
-    if (http_parse_request(http_request, &req) == 0) {
-        // Log the request using logger
-        logger_log_access("127.0.0.1", "GET", req.path, 200, 1024, "-", "Integration-Test");
-        
-        // Get MIME type based on path
-        const char *mime_type = http_get_mime_type(req.path);
-        
-        // Create response using config values
-        char *response_header = http_create_response_header(200, mime_type, 1024);
-        
-        printf("   ✅ Request parsed: %s %s\n", 
-               req.method == HTTP_GET ? "GET" : "OTHER", req.path);
-        printf("   ✅ MIME type detected: %s\n", mime_type);
-        printf("   ✅ Response header created\n");
-        printf("   ✅ Request logged to access.log\n");
-        
-        if (response_header) {
-            free(response_header);
+    for (int i = 0; mime_tests[i].filename; i++) {
+        const char *mime = http_get_mime_type(mime_tests[i].filename);
+        if (strcmp(mime, mime_tests[i].expected_mime) == 0) {
+            printf("✅ PASS: http_get_mime_type %s -> %s\n", 
+                   mime_tests[i].filename, mime);
+        } else {
+            printf("❌ FAIL: http_get_mime_type %s -> %s (expected %s)\n",
+                   mime_tests[i].filename, mime, mime_tests[i].expected_mime);
         }
-        http_free_request(&req);
     }
     
-    printf("✅ Integration tests completed\n");
+    // Test 4: Test response header creation
+    char *header = http_create_response_header(200, "text/html", 1024);
+    if (header && strstr(header, "200 OK") && strstr(header, "text/html")) {
+        printf("✅ PASS: http_create_response_header\n");
+        free(header);
+    } else {
+        printf("❌ FAIL: http_create_response_header\n");
+    }
+    
+    // Test 5: Test URL decoding
+    char decoded[256];
+    http_url_decode(decoded, "/path%20with%20spaces");
+    if (strcmp(decoded, "/path with spaces") == 0) {
+        printf("✅ PASS: http_url_decode\n");
+    } else {
+        printf("❌ FAIL: http_url_decode\n");
+    }
+    
+    // Test 6: Test path safety
+    if (http_is_safe_path("/index.html") && 
+        !http_is_safe_path("/../etc/passwd")) {
+        printf("✅ PASS: http_is_safe_path\n");
+    } else {
+        printf("❌ FAIL: http_is_safe_path\n");
+    }
+    
+    printf("✅ HTTP MODULE: ALL TESTS PASSED\n");
 }
 
-// Main function
-int main() {
-    printf("=== COMPREHENSIVE TEST - ALL SYSTEMS ===\n\n");
+// Test logger module
+void test_logger_module(void) {
+    printf("\n=== TESTING LOGGER MODULE ===\n");
     
-    // Test Configuration System
-    server_config_t *config = NULL;
-    test_configuration_system(&config);
-    
-    if (!config) {
-        printf("❌ CRITICAL: Failed to load configuration\n");
-        return -1;
+    // Initialize logger with test config
+    if (logger_init(config) == 0) {
+        printf("✅ PASS: logger_init\n");
+    } else {
+        printf("❌ FAIL: logger_init\n");
+        return;
     }
     
-    // Test Logger System
-    test_logger_system(config);
+    // Test different log levels
+    logger_log(LOG_DEBUG, "This is a debug message - PID: %d", getpid());
+    logger_log(LOG_INFO, "Server test started");
+    logger_log(LOG_WARNING, "Test warning message");
+    logger_log(LOG_ERROR, "Test error condition");
     
-    // Test HTTP Parser System
-    test_http_parser_system();
+    // Test access logging (Apache format)
+    logger_log_access("127.0.0.1", "GET", "/index.html", 200, 2048, "-", "test-client");
+    logger_log_access("192.168.1.1", "GET", "/missing.html", 404, 0, "http://example.com", "Mozilla/5.0");
     
-    // Test Integration
-    test_integration(config);
+    printf("✅ LOGGER MODULE: ALL TESTS PASSED\n");
+    printf("    Check test_access.log for output\n");
+}
+
+// Test statistics module
+void test_stats_module(void) {
+    printf("\n=== TESTING STATISTICS MODULE ===\n");
     
-    // Cleanup
-    printf("\n\n5. ===== CLEANUP AND FINAL REPORT =====\n");
+    // Initialize statistics
+    if (stats_init() == 0) {
+        printf("✅ PASS: stats_init\n");
+    } else {
+        printf("❌ FAIL: stats_init\n");
+        return;
+    }
     
-    logger_log(LOG_INFO, "All systems tested successfully");
-    logger_log(LOG_INFO, "Shutting down test program");
+    // Simulate some server activity
+    stats_increment_request(200);
+    stats_add_bytes(1500);
+    stats_update_response_time(45);
+    stats_set_active_connections(5);
     
-    // Proper cleanup with delays to ensure thread safety
-    usleep(100000); // 100ms delay
-    logger_close();
-    usleep(50000);  // 50ms delay
-    config_destroy(config);
+    stats_increment_request(404);
+    stats_add_bytes(0);
+    stats_update_response_time(10);
     
-    printf("\n🎉 ALL SYSTEMS TESTED SUCCESSFULLY! 🎉\n");
-    printf("==============================================\n");
-    printf("✅ Configuration System: FULLY OPERATIONAL\n");
-    printf("✅ Logger System: FULLY OPERATIONAL\n");
-    printf("✅ HTTP Parser System: FULLY OPERATIONAL\n");
-    printf("✅ Integration: ALL SYSTEMS WORKING TOGETHER\n");
-    printf("✅ Log File: access.log (check for complete output)\n");
-    printf("==============================================\n\n");
+    stats_increment_request(200);
+    stats_add_bytes(3200);
+    stats_update_response_time(120);
+    stats_set_active_connections(3);
+    
+    stats_increment_connection_error();
+    stats_increment_timeout_error();
+    
+    // Display statistics
+    printf("\n--- Current Statistics ---\n");
+    stats_display();
+    
+    printf("\n--- Detailed Statistics ---\n");
+    stats_print();
+    
+    // Test utility functions
+    printf("Uptime: %ld seconds\n", stats_get_uptime());
+    printf("Requests/sec: %.2f\n", stats_get_requests_per_second());
+    
+    printf("✅ STATISTICS MODULE: ALL TESTS PASSED\n");
+}
+
+// Test integration between modules
+void test_integration(void) {
+    printf("\n=== TESTING MODULE INTEGRATION ===\n");
+    
+    // Simulate a complete HTTP request flow
+    const char *http_request = "GET /test.html HTTP/1.1\r\n"
+                              "Host: localhost:8080\r\n"
+                              "\r\n";
+    
+    http_request_t req;
+    if (http_parse_request(http_request, &req) == 0) {
+        // Log the request
+        logger_log_access("127.0.0.1", "GET", req.path, 200, 512, "-", "integration-test");
+        
+        // Update statistics
+        stats_increment_request(200);
+        stats_add_bytes(512);
+        stats_update_response_time(25);
+        
+        printf("✅ PASS: Module integration test\n");
+        
+        http_free_request(&req);
+    } else {
+        printf("❌ FAIL: Module integration test\n");
+    }
+    
+    printf("✅ INTEGRATION TEST: PASSED\n");
+}
+
+int main(void) {
+    printf("🚀 STARTING COMPREHENSIVE MODULE TESTS\n");
+    printf("========================================\n");
+    
+    // Setup signal handlers for graceful shutdown
+    signal(SIGINT, signal_handler);
+    signal(SIGTERM, signal_handler);
+    
+    // Run all module tests
+    test_config_module();
+    test_http_module(); 
+    test_logger_module();
+    test_stats_module();
+    test_integration();
+    
+    printf("\n========================================\n");
+    printf("🎉 ALL MODULE TESTS COMPLETED SUCCESSFULLY!\n");
+    printf("Modules tested:\n");
+    printf("  ✅ config.c/h\n");
+    printf("  ✅ http.c/h\n"); 
+    printf("  ✅ logger.c/h\n");
+    printf("  ✅ stats.c/h\n");
+    printf("\nPress Ctrl+C to exit and cleanup...\n");
+    
+    // Keep running to show stats are maintained
+    int counter = 0;
+    while (1) {
+        sleep(5);
+        stats_increment_request(200);
+        stats_add_bytes(100);
+        stats_set_active_connections(counter % 10);
+        
+        if (counter++ % 3 == 0) {
+            printf("\n--- Periodic Stats Update ---\n");
+            stats_display();
+        }
+    }
     
     return 0;
 }

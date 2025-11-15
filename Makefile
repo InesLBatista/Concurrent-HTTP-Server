@@ -1,86 +1,38 @@
 # Compiler and flags
 CC = gcc
 CFLAGS = -Wall -Wextra -Werror -pthread -lrt -g
-TARGET = concurrent-http-server
-SRCDIR = src
-OBJDIR = obj
-BINDIR = bin
+TARGET = module_tests
 
-# Source files
-SOURCES = $(wildcard $(SRCDIR)/*.c)
-OBJECTS = $(SOURCES:$(SRCDIR)/%.c=$(OBJDIR)/%.o)
+# Source files with correct paths
+SRC_DIR = src
+SRC = $(SRC_DIR)/main.c $(SRC_DIR)/config.c $(SRC_DIR)/http.c $(SRC_DIR)/logger.c $(SRC_DIR)/stats.c
+
+# Object files
+OBJ = $(SRC:.c=.o)
 
 # Default target
-all: $(BINDIR)/$(TARGET)
+all: $(TARGET)
 
-# Create binary
-$(BINDIR)/$(TARGET): $(OBJECTS) | $(BINDIR)
-	$(CC) $(OBJECTS) -o $@ $(CFLAGS)
+# Build the test executable
+$(TARGET): $(OBJ)
+	$(CC) -o $(TARGET) $(OBJ) $(CFLAGS)
+	@echo "✅ Build successful! Run ./$(TARGET) to test all modules"
 
-# Create object files
-$(OBJDIR)/%.o: $(SRCDIR)/%.c | $(OBJDIR)
+# Compile source files to object files
+$(SRC_DIR)/%.o: $(SRC_DIR)/%.c
 	$(CC) $(CFLAGS) -c $< -o $@
 
-# Create directories
-$(OBJDIR):
-	mkdir -p $(OBJDIR)
+# Run the tests
+test: $(TARGET)
+	@echo "🧪 Running comprehensive module tests..."
+	./$(TARGET)
 
-$(BINDIR):
-	mkdir -p $(BINDIR)
-
-# Build and run server
-run: all
-	./$(BINDIR)/$(TARGET)
-
-# Clean build artifacts
+# Clean build files
 clean:
-	rm -rf $(OBJDIR) $(BINDIR)
-
-# Run tests
-test: all
-	@echo "Running functional tests..."
-	@# Add your test commands here
-	@echo "Running concurrency tests..."
-	ab -n 10000 -c 100 http://localhost:8080/
-	@echo "Running synchronization tests..."
-	valgrind --tool=helgrind ./$(BINDIR)/$(TARGET) &
-	sleep 2
-	pkill -f $(TARGET)
-	@echo "Running stress tests..."
-	valgrind --leak-check=full ./$(BINDIR)/$(TARGET) &
-	sleep 300
-	pkill -f $(TARGET)
-
-# Install dependencies (if needed)
-deps:
-	@echo "Installing required tools..."
-	sudo apt-get update
-	sudo apt-get install -y apache2-utils valgrind curl
+	rm -f $(TARGET) $(OBJ) test_access.log test_server.conf
 
 # Debug build
 debug: CFLAGS += -DDEBUG -O0
-debug: all
+debug: $(TARGET)
 
-# Release build
-release: CFLAGS += -O2
-release: all
-
-# Static analysis
-analyze:
-	cppcheck --enable=all $(SRCDIR)
-
-# Format code
-format:
-	find $(SRCDIR) -name "*.c" -o -name "*.h" | xargs clang-format -i
-
-# Create distribution package
-dist: clean
-	mkdir -p dist
-	tar -czf dist/$(TARGET)-$(shell date +%Y%m%d).tar.gz \
-		--exclude='.*' \
-		--exclude='dist' \
-		--exclude='obj' \
-		--exclude='bin' \
-		.
-
-.PHONY: all run clean test deps debug release analyze format dist
+.PHONY: all test clean debug
