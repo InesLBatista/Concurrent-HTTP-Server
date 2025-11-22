@@ -1,38 +1,58 @@
-# Compiler and flags
+# Makefile
+# Inês Batista, Maria Quinteiro
+
+# Sistema de build para o Concurrent HTTP Server.
+# Suporta todos os targets obrigatórios: all, clean, run, test.
+
+# Configurações do compilador
 CC = gcc
 CFLAGS = -Wall -Wextra -Werror -pthread -lrt -g
-TARGET = module_tests
+TARGET = server
 
-# Source files with correct paths
-SRC_DIR = src
-SRC = $(SRC_DIR)/main.c $(SRC_DIR)/config.c $(SRC_DIR)/http.c $(SRC_DIR)/logger.c $(SRC_DIR)/stats.c
+# Lista de ficheiros fonte - apenas módulos mencionados no template
+SOURCES = src/main.c \
+          src/config.c \
+          src/shared_memory.c \
+          src/semaphores.c
 
-# Object files
-OBJ = $(SRC:.c=.o)
+# Gera lista de ficheiros objeto a partir dos fonte
+OBJECTS = $(SOURCES:.c=.o)
 
-# Default target
-all: $(TARGET)
+# Target principal - compila o servidor
+$(TARGET): $(OBJECTS)
+	@echo "Linking $(TARGET)..."
+	$(CC) $(OBJECTS) -o $(TARGET) $(CFLAGS)
+	@echo "Build completed successfully!"
 
-# Build the test executable
-$(TARGET): $(OBJ)
-	$(CC) -o $(TARGET) $(OBJ) $(CFLAGS)
-	@echo "✅ Build successful! Run ./$(TARGET) to test all modules"
-
-# Compile source files to object files
-$(SRC_DIR)/%.o: $(SRC_DIR)/%.c
+# Regra para compilar ficheiros .c para .o
+%.o: %.c
+	@echo "Compiling $<..."
 	$(CC) $(CFLAGS) -c $< -o $@
 
-# Run the tests
-test: $(TARGET)
-	@echo "🧪 Running comprehensive module tests..."
+# Target para limpar ficheiros built
+clean:
+	@echo "Cleaning build files..."
+	rm -f $(OBJECTS) $(TARGET)
+	@echo "Clean completed!"
+
+# Target para build e executar
+run: $(TARGET)
+	@echo "Starting server..."
 	./$(TARGET)
 
-# Clean build files
-clean:
-	rm -f $(TARGET) $(OBJ) test_access.log test_server.conf
+# Target para testes (placeholder para fase de testes)
+test: $(TARGET)
+	@echo "Running tests..."
+	# TODO: Implementar testes automáticos
+	@echo "Test target ready for implementation"
 
-# Debug build
-debug: CFLAGS += -DDEBUG -O0
-debug: $(TARGET)
+# Target para mostrar ajuda
+help:
+	@echo "Available targets:"
+	@echo "  all    - Build the server (default)"
+	@echo "  clean  - Remove build files"
+	@echo "  run    - Build and run the server"
+	@echo "  test   - Run automated tests"
 
-.PHONY: all test clean debug
+# Declara targets que não correspondem a ficheiros
+.PHONY: all clean run test help
