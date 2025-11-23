@@ -122,6 +122,33 @@ int dequeue_connection(shared_data_t* data, sem_t* empty_slots, sem_t* filled_sl
     return client_fd;  // Retorna descritor para processamento
 }
 
+// Função para remover conexão da fila sem bloquear
+// Versão não-bloqueante que verifica imediatamente se há trabalho
+// Retorna descritor de socket ou -1 se fila estiver vazia
+int dequeue_connection_nonblock(shared_data_t* data, sem_t* empty_slots, sem_t* filled_slots, sem_t* queue_mutex) {
+    // Tenta imediatamente - não bloqueia
+    // sem_trywait retorna 0 em sucesso, -1 se não puder decrementar imediatamente
+    if (sem_trywait(filled_slots) != 0) {
+        return -1;  // Fila vazia - não há trabalho disponível
+    }
+    
+    // Adquire mutex para acesso exclusivo à fila
+    sem_wait(queue_mutex);
+    
+    // Remove conexão do início da fila (circular buffer)
+    int client_fd = data->queue.sockets[data->queue.front];
+    data->queue.front = (data->queue.front + 1) % MAX_QUEUE_SIZE;
+    data->queue.count--;
+    
+    // Liberta mutex da fila
+    sem_post(queue_mutex);
+    
+    // Incrementa empty_slots - sinaliza que há espaço disponível
+    sem_post(empty_slots);
+    
+    return client_fd;  // Retorna descritor para processamento
+}
+
 // Verifica se a fila está vazia
 // Retorna 1 se vazia, 0 se não vazia
 int is_queue_empty(shared_data_t* data) {

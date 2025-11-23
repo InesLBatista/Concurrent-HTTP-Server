@@ -41,9 +41,10 @@ typedef struct {
 shared_data_t* create_shared_memory();
 void destroy_shared_memory(shared_data_t* data);
 
-// Funções para operações na fila - adicionadas para completar funcionalidade
+// Funções para operações na fila
 int enqueue_connection(shared_data_t* data, sem_t* empty_slots, sem_t* filled_slots, sem_t* queue_mutex, int client_fd);
 int dequeue_connection(shared_data_t* data, sem_t* empty_slots, sem_t* filled_slots, sem_t* queue_mutex);
+int dequeue_connection_nonblock(shared_data_t* data, sem_t* empty_slots, sem_t* filled_slots, sem_t* queue_mutex);
 int is_queue_empty(shared_data_t* data);
 int is_queue_full(shared_data_t* data);
 
