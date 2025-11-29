@@ -1,51 +1,55 @@
-// shared_memory.h
-// Inês Batista, Maria Quinteiro
+// Inês Batista, 124877
+// Maria Quinteiro, 124996
 
-// Define estruturas de dados partilhadas entre processos: fila de conexões
-// e estatísticas do servidor. Permite comunicação eficiente entre o processo
-// master e workers através de memória partilhada POSIX.
+#ifndef SHARED_MEM_H
+#define SHARED_MEM_H
 
-#ifndef SHARED_MEMORY_H
-#define SHARED_MEMORY_H
+#include <semaphore.h>  // Para sem_t - semáforos para sincronização
 
-#include <semaphore.h>
-
-// Tamanho máximo da fila de conexões - conforme especificação do projeto
+// Define o tamanho máximo da fila de conexões
+// Isto é o número máximo de clientes que podem ficar em espera
 #define MAX_QUEUE_SIZE 100
 
-// Estrutura para estatísticas do servidor - conforme template fornecido
+// Estrutura para guardar estatísticas do servidor
+// Estas estatísticas são partilhadas entre todos os processos
 typedef struct {
-    long total_requests;        // Contador total de pedidos servidos
-    long bytes_transferred;     // Total de bytes transferidos
-    long status_200;           // Contador de respostas 200 OK
-    long status_404;           // Contador de respostas 404 Not Found
-    long status_500;           // Contador de respostas 500 Internal Server Error
-    int active_connections;    // Número de conexões ativas
+    long total_requests;     // Conta quantos pedidos HTTP foram processados no total
+    long bytes_transferred;   // Conta quantos bytes foram enviados para clientes
+    long status_200;       // Conta quantas respostas "200 OK" foram enviadas
+    long status_404;             // Conta quantas respostas "404 Not Found" foram enviadas  
+    long status_500;          // Conta quantas respostas "500 Internal Error" foram enviadas
+    int active_connections;     // Mostra quantas ligações estão ativas AGORA mesmo
 } server_stats_t;
 
-// Estrutura para fila de conexões - bounded circular buffer
+// Estrutura para a fila de conexões (produtor-consumidor)
+// O master coloca conexões aqui, os workers retiram
 typedef struct {
-    int sockets[MAX_QUEUE_SIZE];  // Array de descritores de socket
-    int front;                    // Índice para remover elementos (dequeue)
-    int rear;                     // Índice para adicionar elementos (enqueue)  
-    int count;                    // Número atual de elementos na fila
+    int sockets[MAX_QUEUE_SIZE];  // Array que guarda os descritores de socket
+    int front;  // Índice do próximo elemento a ser retirado (consumidor)
+    int rear;         // Índice do próximo elemento a ser inserido (produtor)
+    int count;      // Número de elementos atualmente na fila
 } connection_queue_t;
 
-// Estrutura principal de dados partilhados
+// Estrutura principal que vai para a memória partilhada
+// Contém tanto a fila como as estatísticas
 typedef struct {
-    connection_queue_t queue;  // Fila de conexões para workers
-    server_stats_t stats;      // Estatísticas expandidas do servidor
+    connection_queue_t queue;   // Fila de conexões para os workers processarem
+    server_stats_t stats;    // Estatísticas globais do servidor
+    
+    // SEMÁFOROS PARA SINCRONIZAÇÃO - ISTO É O QUE FALTAVA!
+    sem_t mutex;              // Semáforo para acesso exclusivo à estrutura toda
+    sem_t empty_slots;        // Semáforo para slots vazios na fila (produtor espera)
+    sem_t full_slots;         // Semáforo para slots preenchidos (consumidor espera)
 } shared_data_t;
 
-// Funções para gerir memória partilhada - conforme template fornecido
-shared_data_t* create_shared_memory();
-void destroy_shared_memory(shared_data_t* data);
 
-// Funções para operações na fila
-int enqueue_connection(shared_data_t* data, sem_t* empty_slots, sem_t* filled_slots, sem_t* queue_mutex, int client_fd);
-int dequeue_connection(shared_data_t* data, sem_t* empty_slots, sem_t* filled_slots, sem_t* queue_mutex);
-int dequeue_connection_nonblock(shared_data_t* data, sem_t* empty_slots, sem_t* filled_slots, sem_t* queue_mutex);
-int is_queue_empty(shared_data_t* data);
-int is_queue_full(shared_data_t* data);
+// Função para criar a memória partilhada
+// Retorna um ponteiro para os dados partilhados ou NULL se erro
+shared_data_t* create_shared_memory();
+
+
+// Função para limpar a memória partilhada no final
+// Deve ser chamada quando o servidor termina
+void destroy_shared_memory(shared_data_t* data);
 
 #endif

@@ -1,26 +1,23 @@
-// config.h
-// Inês Batista, Maria Quinteiro
-
-// Este módulo define a estrutura de configuração e função para carregar 
-// parâmetros do ficheiro server.conf. É fundamental para personalizar o 
-// comportamento do servidor sem recompilar.
+// Inês Batista, 124877
+// Maria Quinteiro, 124996
 
 #ifndef CONFIG_H
 #define CONFIG_H
 
-// Estrutura de configuração do servidor - conforme template 
+// Esta estrutura guarda todas as configurações do servidor
+// São os valores que mudam consoante o ficheiro server.conf
 typedef struct {
-    int port;                       // Porta onde o servidor escuta (ex: 8080)
-    char document_root[256];        // Diretório base dos ficheiros web
-    int num_workers;                // Número de processos worker
-    int threads_per_worker;         // Threads por processo worker  
-    int max_queue_size;             // Tamanho máximo da fila de conexões
-    char log_file[256];             // Ficheiro de log de acesso
-    int cache_size_mb;              // Tamanho máximo da cache em MB
-    int timeout_seconds;            // Timeout de conexão em segundos
+    int port;                       // Porto onde o servidor vai escutar (ex: 8080)
+    char document_root[256];       // Pasta onde estão os ficheiros HTML, CSS, etc.
+    int num_workers;                // Quantos processos trabalhadores vamos criar
+    int threads_per_worker;    // Quantas threads cada worker vai ter
+    int max_queue_size;             // Quantas ligações podem ficar em espera
+    char log_file[256];      // Onde guardar os registos do servidor
+    int cache_size_mb;            // Quanto espaço usar para cache de ficheiros
+    int timeout_seconds;       // Quanto tempo esperar por cada cliente
 } server_config_t;
 
-// Função para carregar configurações do ficheiro - conforme template
+// Esta função lê o ficheiro server.conf e preenche a estrutura acima
 int load_config(const char* filename, server_config_t* config);
 
 #endif

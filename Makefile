@@ -1,83 +1,99 @@
-# Makefile
-# Inês Batista, Maria Quinteiro
-
-# Sistema de build para o Concurrent HTTP Server.
-# Suporta todos os targets obrigatórios: all, clean, run, test.
-
-# =============================================================================
-# CONFIGURAÇÕES
-# =============================================================================
-
-# Compilador e flags
+# Que programa usar para compilar 
 CC = gcc
-CFLAGS = -Wall -Wextra -Werror -pthread -lrt -g
+
+# -Wall -Wextra Ativar todos os avisos 
+# -std=c99  Usar standard C 
+# -pthread   Suporte para threads 
+# -lrt Biblioteca para semáforos e memória partilhada
+# -g  Incluir informação para debug
+CFLAGS = -Wall -Wextra -std=c99 -pthread -lrt -g
+
+# -O2    Otimização máxima 
+# -DNDEBUG   Desativar checks de debug
+RELEASE_FLAGS = -O2 -DNDEBUG
+
+# -O0   Sem otimização 
+# -g    Informação de debug
+# -DDEBUG  Ativar código de debug
+DEBUG_FLAGS = -O0 -g -DDEBUG
+
+
+# Pasta com código fonte
+SRCDIR = src
+
+# Pasta para ficheiros objeto temporários
+OBJDIR = obj
+
+# Nome do programa final
 TARGET = server
 
-# =============================================================================
-# FICHEIROS
-# =============================================================================
-
-# Lista de ficheiros fonte
 
 
-SOURCES = src/main.c \
-          src/config.c \
-          src/shared_memory.c \
-          src/semaphores.c \
-          src/master.c \
-          src/worker.c
 
-# Gera lista de objetos a partir dos fonte
-OBJECTS = $(SOURCES:.c=.o)
 
-# =============================================================================
-# REGRAS DE BUILD
-# =============================================================================
+# SOURCES: Encontrar TODOS os ficheiros .c na pasta src
+SOURCES = $(wildcard $(SRCDIR)/*.c)
 
-# Target principal - compila o servidor
+# OBJECTS: Converter nomes .c para .o na pasta obj
+# Exemplo: src/main.c → obj/main.o
+OBJECTS = $(SOURCES:$(SRCDIR)/%.c=$(OBJDIR)/%.o)
+
+
+
+
+# Target padrão: 'make' ou 'make all'
+all: $(TARGET)
+
+# Versão otimizada: 'make release'
+release: CFLAGS += $(RELEASE_FLAGS)
+release: $(TARGET)
+
+# Versão de desenvolvimento: 'make debug'
+debug: CFLAGS += $(DEBUG_FLAGS)
+debug: $(TARGET)
+
+# Regra principal: criar o executável final
 $(TARGET): $(OBJECTS)
-	@echo "🔗 Linking $(TARGET)..."
-	$(CC) $(OBJECTS) -o $(TARGET) $(CFLAGS)
-	@echo "✅ Build completed successfully!"
+	$(CC) $(CFLAGS) -o $(TARGET) $(OBJECTS)
 
-# Regra padrão para compilar .c para .o
-%.o: %.c
-	@echo "📦 Compiling $<..."
+# Regra para ficheiros objeto: compilar .c para .o
+$(OBJDIR)/%.o: $(SRCDIR)/%.c | $(OBJDIR)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-# =============================================================================
-# TARGETS DE UTILIDADE
-# =============================================================================
+# Criar pasta obj se não existir
+$(OBJDIR):
+	mkdir -p $(OBJDIR)
 
-# Target para limpar ficheiros built
+
+
+# Limpar: 'make clean' - apaga ficheiros compilados
 clean:
-	@echo "🧹 Cleaning build files..."
-	rm -f $(OBJECTS) $(TARGET)
-	@echo "✅ Clean completed!"
+	rm -rf $(OBJDIR) $(TARGET) *.log logs/*.log
 
-# Target para build e executar
+# Executar: 'make run' - compila e executa
 run: $(TARGET)
-	@echo "🚀 Starting server..."
 	./$(TARGET)
 
-# Target para testes (placeholder para fase de testes)
+# Teste rápido: 'make test' - compila, executa e testa
 test: $(TARGET)
-	@echo "🧪 Running tests..."
-	# TODO: Implementar testes automáticos
-	@echo "✅ Test target ready for implementation"
+	./$(TARGET) &
+	sleep 2
+	curl http://localhost:8080/
+	pkill -f $(TARGET)
 
-# Target para mostrar ajuda
-help:
-	@echo "📖 Available targets:"
-	@echo "  all    - Build the server (default)"
-	@echo "  clean  - Remove build files"
-	@echo "  run    - Build and run the server"
-	@echo "  test   - Run automated tests"
-	@echo "  help   - Show this help message"
+# Verificar memory leaks: 'make valgrind'
+valgrind: $(TARGET)
+	valgrind --leak-check=full --track-origins=yes ./$(TARGET)
 
-# =============================================================================
-# DECLARAÇÕES
-# =============================================================================
+# Detetar erros de threads: 'make helgrind'
+helgrind: $(TARGET)
+	valgrind --tool=helgrind ./$(TARGET)
 
-# Declara targets que não correspondem a ficheiros
-.PHONY: all clean run test help
+# Instalar dependências: 'make deps'
+deps:
+	sudo apt-get update
+	sudo apt-get install -y build-essential gcc make
+	sudo apt-get install -y apache2-utils curl valgrind gdb
+
+# Declarar targets que não são ficheiros
+.PHONY: all clean run test valgrind helgrind deps release debug
