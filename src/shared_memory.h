@@ -34,7 +34,7 @@ typedef struct {
 // Estrutura principal de dados partilhados
 typedef struct {
     connection_queue_t queue;  // Fila de conexões para workers
-    server_stats_t stats;      // Estatísticas do servidor
+    server_stats_t stats;      // Estatísticas expandidas do servidor
 } shared_data_t;
 
 // Funções para gerir memória partilhada - conforme template fornecido
