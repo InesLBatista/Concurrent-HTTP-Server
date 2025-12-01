@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>400 - Bad Request</title>
+    <link rel="stylesheet" href="/style.css">
+    <style>
+        .error-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 60px 30px;
+            text-align: center;
+        }
+        
+        .error-code {
+            font-size: 8rem;
+            font-weight: 900;
+            background: linear-gradient(135deg, #f59e0b, #f97316);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            margin-bottom: 20px;
+            line-height: 1;
+        }
+        
+        .error-title {
+            font-size: 2.5rem;
+            color: #1f2937;
+            margin-bottom: 20px;
+        }
+        
+        .error-message {
+            color: #6b7280;
+            font-size: 1.2rem;
+            max-width: 600px;
+            margin: 0 auto 40px;
+            line-height: 1.6;
+        }
+        
+        .error-details {
+            background: #f3f4f6;
+            padding: 25px;
+            border-radius: 12px;
+            margin: 40px auto;
+            max-width: 600px;
+            text-align: left;
+        }
+        
+        .error-details h3 {
+            color: #374151;
+            margin-bottom: 15px;
+            font-size: 1.2rem;
+        }
+        
+        .error-details ul {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        .error-details li {
+            padding: 8px 0;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .error-details li:last-child {
+            border-bottom: none;
+        }
+        
+        .error-icon {
+            color: #f59e0b;
+            font-size: 1.2rem;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 30px;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            background: #3b82f6;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        
+        .btn:hover {
+            background: #2563eb;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(37, 99, 235, 0.3);
+        }
+        
+        .btn-secondary {
+            background: #6b7280;
+        }
+        
+        .btn-secondary:hover {
+            background: #4b5563;
+        }
+        
+        .suggestions {
+            margin-top: 40px;
+            padding: 25px;
+            background: #f0f9ff;
+            border-radius: 12px;
+            border-left: 4px solid #3b82f6;
+        }
+        
+        .suggestions h3 {
+            color: #1e40af;
+            margin-bottom: 15px;
+        }
+        
+        .suggestions ol {
+            padding-left: 20px;
+            color: #4b5563;
+        }
+        
+        .suggestions li {
+            margin-bottom: 10px;
+            line-height: 1.5;
+        }
+        
+        .server-info {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #e5e7eb;
+            color: #9ca3af;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="error-container">
+            <div class="error-code">400</div>
+            <h1 class="error-title">Bad Request</h1>
+            
+            <p class="error-message">
+                The server cannot process the request due to a client error.
+                The request was malformed or contains invalid syntax.
+            </p>
+            
+            <div class="error-details">
+                <h3>Error Details:</h3>
+                <ul>
+                    <li>
+                        <span class="error-icon">⚠️</span>
+                        <span>Status Code: <strong>400 Bad Request</strong></span>
+                    </li>
+                    <li>
+                        <span class="error-icon">🕒</span>
+                        <span>Timestamp: <span id="timestamp">Loading...</span></span>
+                    </li>
+                    <li>
+                        <span class="error-icon">🌐</span>
+                        <span>Server: Concurrent HTTP Server 1.0</span>
+                    </li>
+                    <li>
+                        <span class="error-icon">🔗</span>
+                        <span>Requested URL: <span id="requested-url">Unknown</span></span>
+                    </li>
+                </ul>
+            </div>
+            
+            <div class="suggestions">
+                <h3>How to fix this error:</h3>
+                <ol>
+                    <li>Check the URL for any typographical errors</li>
+                    <li>Clear your browser cache and cookies</li>
+                    <li>Verify that the request format is correct</li>
+                    <li>Try accessing the page again</li>
+                    <li>If the problem persists, contact the server administrator</li>
+                </ol>
+            </div>
+            
+            <div class="action-buttons">
+                <a href="/" class="btn">🏠 Go to Home Page</a>
+                <a href="#" onclick="history.back()" class="btn btn-secondary">↩️ Go Back</a>
+                <button onclick="reloadPage()" class="btn">🔄 Reload Page</button>
+            </div>
+            
+            <div class="server-info">
+                <p>Concurrent HTTP Server | Authors: Inês Batista (124877) & Maria Quinteiro (124996)</p>
+                <p>Sistemas Operativos 2024/2025 | Error Page: 400 Bad Request</p>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Preencher informações dinâmicas
+        document.getElementById('timestamp').textContent = new Date().toLocaleString('en-US');
+        document.getElementById('requested-url').textContent = window.location.pathname;
+        
+        // Função para recarregar a página
+        function reloadPage() {
+            window.location.reload();
+        }
+        
+        // Adicionar listener para tecla F5
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'F5') {
+                e.preventDefault();
+                reloadPage();
+            }
+        });
+        
+        // Tentar diagnosticar o erro
+        function diagnoseError() {
+            const url = window.location.href;
+            const issues = [];
+            
+            if (url.includes('%')) {
+                issues.push('URL contains special characters that might not be properly encoded');
+            }
+            
+            if (url.length > 2000) {
+                issues.push('URL might be too long');
+            }
+            
+            if (url.includes(' ')) {
+                issues.push('URL contains spaces (should be encoded as %20)');
+            }
+            
+            if (issues.length > 0) {
+                const diagnosis = document.createElement('div');
+                diagnosis.className = 'suggestions';
+                diagnosis.innerHTML = `
+                    <h3>Possible Issues Detected:</h3>
+                    <ul>
+                        ${issues.map(issue => `<li>${issue}</li>`).join('')}
+                    </ul>
+                `;
+                document.querySelector('.error-details').after(diagnosis);
+            }
+        }
+        
+        // Executar diagnóstico ao carregar
+        window.addEventListener('load', diagnoseError);
+    </script>
+</body>
+</html>

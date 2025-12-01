@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>403 - Forbidden</title>
+    <link rel="stylesheet" href="/style.css">
+    <style>
+        .error-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 60px 30px;
+            text-align: center;
+        }
+        
+        .error-code {
+            font-size: 8rem;
+            font-weight: 900;
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            margin-bottom: 20px;
+            line-height: 1;
+        }
+        
+        .error-title {
+            font-size: 2.5rem;
+            color: #1f2937;
+            margin-bottom: 20px;
+        }
+        
+        .error-message {
+            color: #6b7280;
+            font-size: 1.2rem;
+            max-width: 600px;
+            margin: 0 auto 40px;
+            line-height: 1.6;
+        }
+        
+        .security-alert {
+            background: #fef2f2;
+            padding: 25px;
+            border-radius: 12px;
+            margin: 40px auto;
+            max-width: 600px;
+            border-left: 4px solid #ef4444;
+            text-align: left;
+        }
+        
+        .security-alert h3 {
+            color: #991b1b;
+            margin-bottom: 15px;
+            font-size: 1.3rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .security-alert p {
+            color: #7f1d1d;
+            margin-bottom: 15px;
+            line-height: 1.5;
+        }
+        
+        .security-icon {
+            color: #ef4444;
+            font-size: 1.5rem;
+        }
+        
+        .path-info {
+            background: #1f2937;
+            color: #f9fafb;
+            padding: 15px;
+            border-radius: 8px;
+            font-family: monospace;
+            margin: 20px 0;
+            overflow-x: auto;
+        }
+        
+        .permission-list {
+            background: #f3f4f6;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        
+        .permission-list h4 {
+            color: #374151;
+            margin-bottom: 10px;
+        }
+        
+        .permission-list ul {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        .permission-list li {
+            padding: 8px 0;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .permission-list li:last-child {
+            border-bottom: none;
+        }
+        
+        .permission-icon {
+            color: #6b7280;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 30px;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            background: #3b82f6;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        
+        .btn:hover {
+            background: #2563eb;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(37, 99, 235, 0.3);
+        }
+        
+        .btn-danger {
+            background: #ef4444;
+        }
+        
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+        
+        .btn-secondary {
+            background: #6b7280;
+        }
+        
+        .btn-secondary:hover {
+            background: #4b5563;
+        }
+        
+        .server-log {
+            margin-top: 40px;
+            padding: 20px;
+            background: #f8fafc;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+            font-family: monospace;
+            font-size: 0.9rem;
+            text-align: left;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        
+        .server-log pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        
+        .contact-info {
+            margin-top: 30px;
+            padding: 20px;
+            background: #dbeafe;
+            border-radius: 12px;
+            color: #1e40af;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="error-container">
+            <div class="error-code">403</div>
+            <h1 class="error-title">Access Forbidden</h1>
+            
+            <p class="error-message">
+                You don't have permission to access this resource on the server.
+                The server understood the request but refuses to authorize it.
+            </p>
+            
+            <div class="security-alert">
+                <h3>
+                    <span class="security-icon">🚫</span>
+                    Security Alert: Path Traversal Attempt Detected
+                </h3>
+                <p>
+                    The requested path contains potentially dangerous patterns that could
+                    be used to access restricted files or directories.
+                </p>
+                
+                <div class="path-info">
+                    Blocked Path: <span id="blocked-path">Unknown</span>
+                </div>
+                
+                <div class="permission-list">
+                    <h4>Possible Reasons:</h4>
+                    <ul>
+                        <li>
+                            <span class="permission-icon">🔒</span>
+                            <span>Directory traversal attempt detected (../ patterns)</span>
+                        </li>
+                        <li>
+                            <span class="permission-icon">📁</span>
+                            <span>Access to restricted directory attempted</span>
+                        </li>
+                        <li>
+                            <span class="permission-icon">👮</span>
+                            <span>Server security rules prevent access to this path</span>
+                        </li>
+                        <li>
+                            <span class="permission-icon">⚙️</span>
+                            <span>File permissions do not allow read access</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="server-log">
+                <h4>Server Security Log:</h4>
+                <pre>
+[SECURITY] Path traversal attempt blocked
+[IP] <span id="client-ip">Unknown</span>
+[PATH] <span id="request-path">Unknown</span>
+[TIME] <span id="log-time">Unknown</span>
+[ACTION] Request blocked by security rules
+[STATUS] 403 Forbidden
+                </pre>
+            </div>
+            
+            <div class="contact-info">
+                <p>
+                    <strong>Note:</strong> This security measure protects against unauthorized
+                    access attempts. If you believe this is an error, please contact the
+                    server administrator with details of what you were trying to access.
+                </p>
+            </div>
+            
+            <div class="action-buttons">
+                <a href="/" class="btn">🏠 Go to Home Page</a>
+                <a href="#" onclick="history.back()" class="btn btn-secondary">↩️ Go Back</a>
+                <button onclick="reportIssue()" class="btn btn-danger">📧 Report This Issue</button>
+            </div>
+            
+            <div class="server-info" style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb; color: #9ca3af; font-size: 0.9rem;">
+                <p>Concurrent HTTP Server Security System | Protection Active</p>
+                <p>Authors: Inês Batista (124877) & Maria Quinteiro (124996)</p>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Preencher informações dinâmicas
+        document.getElementById('timestamp').textContent = new Date().toLocaleString('en-US');
+        document.getElementById('blocked-path').textContent = window.location.pathname;
+        document.getElementById('request-path').textContent = window.location.pathname;
+        document.getElementById('log-time').textContent = new Date().toISOString();
+        
+        // Tentar obter IP do cliente (simulação)
+        function getClientIP() {
+            return 'Unknown (Security: IP masked)';
+        }
+        
+        document.getElementById('client-ip').textContent = getClientIP();
+        
+        // Função para reportar problema
+        function reportIssue() {
+            const subject = encodeURIComponent('403 Forbidden Error Report');
+            const body = encodeURIComponent(
+                `Error Details:\n` +
+                `- URL: ${window.location.href}\n` +
+                `- Time: ${new Date().toLocaleString()}\n` +
+                `- Path: ${window.location.pathname}\n\n` +
+                `Description of what I was trying to access:\n\n`
+            );
+            
+            // Simular envio de email
+            alert('Please contact the server administrator with the following information:\n\n' +
+                  'URL: ' + window.location.href + '\n' +
+                  'Time: ' + new Date().toLocaleString() + '\n' +
+                  'Path: ' + window.location.pathname);
+        }
+        
+        // Verificar se o caminho contém padrões suspeitos
+        function analyzePath() {
+            const path = window.location.pathname;
+            const warnings = [];
+            
+            if (path.includes('..')) {
+                warnings.push('Directory traversal pattern detected');
+            }
+            
+            if (path.includes('//')) {
+                warnings.push('Double slashes detected (potential path manipulation)');
+            }
+            
+            if (path.includes('~')) {
+                warnings.push('Home directory reference detected');
+            }
+            
+            if (path.includes('/etc/') || path.includes('/passwd') || path.includes('/shadow')) {
+                warnings.push('System file access attempt detected');
+            }
+            
+            if (warnings.length > 0) {
+                const analysis = document.createElement('div');
+                analysis.className = 'security-alert';
+                analysis.style.marginTop = '20px';
+                analysis.innerHTML = `
+                    <h3><span class="security-icon">🔍</span> Security Analysis</h3>
+                    <p>Path analysis revealed the following security concerns:</p>
+                    <ul style="list-style: none; padding-left: 0; margin-top: 15px;">
+                        ${warnings.map(warning => 
+                            `<li style="padding: 5px 0; color: #7f1d1d;">
+                                <span style="color: #ef4444;">●</span> ${warning}
+                            </li>`
+                        ).join('')}
+                    </ul>
+                `;
+                document.querySelector('.server-log').after(analysis);
+            }
+        }
+        
+        // Executar análise de segurança
+        window.addEventListener('load', analyzePath);
+        
+        // Desativar clique direito (opcional para página de segurança)
+        document.addEventListener('contextmenu', function(e) {
+            if (window.location.pathname.includes('/../')) {
+                e.preventDefault();
+                alert('Security restrictions prevent this action on this page.');
+                return false;
+            }
+        });
+    </script>
+</body>
+</html>

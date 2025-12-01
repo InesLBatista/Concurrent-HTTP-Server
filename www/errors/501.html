@@ -1,0 +1,738 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>501 - Not Implemented</title>
+    <link rel="stylesheet" href="/style.css">
+    <style>
+        .error-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 60px 30px;
+            text-align: center;
+        }
+        
+        .error-code {
+            font-size: 8rem;
+            font-weight: 900;
+            background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            margin-bottom: 20px;
+            line-height: 1;
+        }
+        
+        .error-title {
+            font-size: 2.5rem;
+            color: #1f2937;
+            margin-bottom: 20px;
+        }
+        
+        .error-message {
+            color: #6b7280;
+            font-size: 1.2rem;
+            max-width: 600px;
+            margin: 0 auto 40px;
+            line-height: 1.6;
+        }
+        
+        .feature-info {
+            background: #f5f3ff;
+            padding: 25px;
+            border-radius: 12px;
+            margin: 40px auto;
+            max-width: 600px;
+            border-left: 4px solid #8b5cf6;
+            text-align: left;
+        }
+        
+        .feature-info h3 {
+            color: #5b21b6;
+            margin-bottom: 15px;
+            font-size: 1.3rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .feature-icon {
+            color: #8b5cf6;
+            font-size: 1.5rem;
+        }
+        
+        .method-details {
+            background: #1f2937;
+            color: #f9fafb;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: monospace;
+            margin: 20px 0;
+            overflow-x: auto;
+        }
+        
+        .method-details pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+        
+        .supported-methods {
+            background: #f0f9ff;
+            padding: 25px;
+            border-radius: 12px;
+            margin: 30px 0;
+            border-left: 4px solid #3b82f6;
+        }
+        
+        .supported-methods h3 {
+            color: #1e40af;
+            margin-bottom: 15px;
+        }
+        
+        .methods-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .method-item {
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            text-align: center;
+            border: 2px solid #e5e7eb;
+            transition: all 0.3s ease;
+        }
+        
+        .method-item.supported {
+            border-color: #10b981;
+            background: #f0fdf4;
+        }
+        
+        .method-item.unsupported {
+            border-color: #ef4444;
+            background: #fef2f2;
+        }
+        
+        .method-item.planned {
+            border-color: #f59e0b;
+            background: #fffbeb;
+        }
+        
+        .method-name {
+            font-weight: bold;
+            font-size: 1.1rem;
+            margin-bottom: 5px;
+            font-family: monospace;
+        }
+        
+        .method-status {
+            font-size: 0.8rem;
+            padding: 3px 8px;
+            border-radius: 4px;
+            display: inline-block;
+        }
+        
+        .status-supported {
+            background: #10b981;
+            color: white;
+        }
+        
+        .status-unsupported {
+            background: #ef4444;
+            color: white;
+        }
+        
+        .status-planned {
+            background: #f59e0b;
+            color: white;
+        }
+        
+        .implementation-roadmap {
+            background: #fef3c7;
+            padding: 25px;
+            border-radius: 12px;
+            margin: 30px 0;
+            border: 1px solid #fbbf24;
+        }
+        
+        .roadmap-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .roadmap-header h3 {
+            color: #92400e;
+            margin: 0;
+        }
+        
+        .roadmap-timeline {
+            position: relative;
+            padding-left: 30px;
+        }
+        
+        .roadmap-timeline::before {
+            content: '';
+            position: absolute;
+            left: 10px;
+            top: 0;
+            bottom: 0;
+            width: 2px;
+            background: #fbbf24;
+        }
+        
+        .roadmap-item {
+            position: relative;
+            margin-bottom: 25px;
+            padding-left: 20px;
+        }
+        
+        .roadmap-item::before {
+            content: '';
+            position: absolute;
+            left: -10px;
+            top: 5px;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #fbbf24;
+            border: 2px solid white;
+            box-shadow: 0 0 0 2px #fbbf24;
+        }
+        
+        .roadmap-item.completed::before {
+            background: #10b981;
+            box-shadow: 0 0 0 2px #10b981;
+        }
+        
+        .roadmap-item.current::before {
+            background: #3b82f6;
+            box-shadow: 0 0 0 2px #3b82f6;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(59, 130, 246, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(59, 130, 246, 0); }
+        }
+        
+        .roadmap-title {
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 5px;
+        }
+        
+        .roadmap-desc {
+            color: #6b7280;
+            font-size: 0.9rem;
+            margin-bottom: 5px;
+        }
+        
+        .roadmap-date {
+            font-size: 0.8rem;
+            color: #9ca3af;
+        }
+        
+        .alternative-options {
+            background: #f3f4f6;
+            padding: 25px;
+            border-radius: 12px;
+            margin: 30px 0;
+        }
+        
+        .alternative-options h3 {
+            color: #374151;
+            margin-bottom: 15px;
+        }
+        
+        .options-list {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        .options-list li {
+            padding: 12px 0;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            align-items: flex-start;
+            gap: 15px;
+        }
+        
+        .options-list li:last-child {
+            border-bottom: none;
+        }
+        
+        .option-icon {
+            color: #8b5cf6;
+            font-size: 1.2rem;
+            flex-shrink: 0;
+            margin-top: 2px;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 30px;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            background: #8b5cf6;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        
+        .btn:hover {
+            background: #7c3aed;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(124, 58, 237, 0.3);
+        }
+        
+        .btn-secondary {
+            background: #6b7280;
+        }
+        
+        .btn-secondary:hover {
+            background: #4b5563;
+        }
+        
+        .btn-outline {
+            background: transparent;
+            color: #8b5cf6;
+            border: 2px solid #8b5cf6;
+        }
+        
+        .btn-outline:hover {
+            background: #8b5cf6;
+            color: white;
+        }
+        
+        .feature-request {
+            margin-top: 40px;
+            padding: 25px;
+            background: #dbeafe;
+            border-radius: 12px;
+            color: #1e40af;
+        }
+        
+        .server-info {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #e5e7eb;
+            color: #9ca3af;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="error-container">
+            <div class="error-code">501</div>
+            <h1 class="error-title">Method Not Implemented</h1>
+            
+            <p class="error-message">
+                The server does not support the functionality required to fulfill the request.
+                This is usually because the HTTP method is not supported by this server.
+            </p>
+            
+            <div class="feature-info">
+                <h3>
+                    <span class="feature-icon">⚙️</span>
+                    Unsupported HTTP Method
+                </h3>
+                <p>
+                    The server received a request using an HTTP method that is not currently
+                    implemented or supported. This server is a basic implementation that
+                    supports only essential HTTP methods.
+                </p>
+                
+                <div class="method-details">
+                    <pre>
+[ERROR] 501 Not Implemented
+[REQUEST] <span id="request-method">Unknown</span> <span id="request-path">Unknown</span>
+[SERVER] Concurrent HTTP Server 1.0
+[SUPPORTED] GET, HEAD
+[UNSUPPORTED] <span id="unsupported-method">Unknown</span>
+[FEATURE_STATUS] Not implemented
+                    </pre>
+                </div>
+            </div>
+            
+            <div class="supported-methods">
+                <h3>Supported HTTP Methods</h3>
+                <p>This server currently supports the following HTTP methods:</p>
+                
+                <div class="methods-grid" id="methods-grid">
+                    <!-- Methods will be populated by JavaScript -->
+                </div>
+            </div>
+            
+            <div class="implementation-roadmap">
+                <div class="roadmap-header">
+                    <h3>🛣️ Implementation Roadmap</h3>
+                    <span style="color: #92400e; font-size: 0.9rem;">Planned Features</span>
+                </div>
+                
+                <div class="roadmap-timeline">
+                    <div class="roadmap-item completed">
+                        <div class="roadmap-title">GET Method Support</div>
+                        <div class="roadmap-desc">Basic file serving functionality</div>
+                        <div class="roadmap-date">Completed: October 2024</div>
+                    </div>
+                    
+                    <div class="roadmap-item completed">
+                        <div class="roadmap-title">HEAD Method Support</div>
+                        <div class="roadmap-desc">Header-only responses</div>
+                        <div class="roadmap-date">Completed: October 2024</div>
+                    </div>
+                    
+                    <div class="roadmap-item current">
+                        <div class="roadmap-title">POST Method</div>
+                        <div class="roadmap-desc">Form data and file upload support</div>
+                        <div class="roadmap-date">Planned: November 2024</div>
+                    </div>
+                    
+                    <div class="roadmap-item">
+                        <div class="roadmap-title">PUT & DELETE Methods</div>
+                        <div class="roadmap-desc">REST API support</div>
+                        <div class="roadmap-date">Planned: December 2024</div>
+                    </div>
+                    
+                    <div class="roadmap-item">
+                        <div class="roadmap-title">WebSocket Support</div>
+                        <div class="roadmap-desc">Real-time communication</div>
+                        <div class="roadmap-date">Planned: January 2025</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="alternative-options">
+                <h3>Alternative Options</h3>
+                <p>Here are some alternatives you can try:</p>
+                
+                <ul class="options-list">
+                    <li>
+                        <span class="option-icon">🔄</span>
+                        <div>
+                            <strong>Use GET instead</strong>
+                            <p>Try accessing the resource using the GET method</p>
+                        </div>
+                    </li>
+                    <li>
+                        <span class="option-icon">📋</span>
+                        <div>
+                            <strong>Check the documentation</strong>
+                            <p>Review the API documentation for supported methods</p>
+                        </div>
+                    </li>
+                    <li>
+                        <span class="option-icon">🔧</span>
+                        <div>
+                            <strong>Contact development team</strong>
+                            <p>Request implementation of this feature</p>
+                        </div>
+                    </li>
+                    <li>
+                        <span class="option-icon">📚</span>
+                        <div>
+                            <strong>Use a different endpoint</strong>
+                            <p>Some endpoints might support the method you need</p>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+            
+            <div class="feature-request">
+                <p>
+                    <strong>Need this feature?</strong><br>
+                    The development team tracks feature requests. If you need this
+                    HTTP method implemented, please contact the server administrators.
+                </p>
+            </div>
+            
+            <div class="action-buttons">
+                <a href="/" class="btn">🏠 Go to Home Page</a>
+                <a href="#" onclick="history.back()" class="btn btn-secondary">↩️ Go Back</a>
+                <button onclick="showTechnicalDetails()" class="btn btn-outline">🔧 Technical Details</button>
+                <button onclick="requestFeature()" class="btn">✨ Request Feature</button>
+            </div>
+            
+            <div class="server-info">
+                <p>Concurrent HTTP Server Development | Feature Tracking</p>
+                <p>Authors: Inês Batista (124877) & Maria Quinteiro (124996) | Sistemas Operativos 2024/2025</p>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Métodos HTTP e seus status
+        const httpMethods = [
+            { name: 'GET', status: 'supported', description: 'Retrieve resources' },
+            { name: 'HEAD', status: 'supported', description: 'Headers only' },
+            { name: 'POST', status: 'planned', description: 'Submit data' },
+            { name: 'PUT', status: 'planned', description: 'Update resources' },
+            { name: 'DELETE', status: 'planned', description: 'Remove resources' },
+            { name: 'PATCH', status: 'unsupported', description: 'Partial updates' },
+            { name: 'OPTIONS', status: 'unsupported', description: 'Communication options' },
+            { name: 'TRACE', status: 'unsupported', description: 'Diagnostic echo' },
+            { name: 'CONNECT', status: 'unsupported', description: 'Tunnel connection' }
+        ];
+        
+        // Detectar método não suportado
+        function detectUnsupportedMethod() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const methodParam = urlParams.get('method') || 'POST'; // Default para POST
+            
+            // Atualizar displays
+            document.getElementById('request-method').textContent = methodParam;
+            document.getElementById('request-path').textContent = window.location.pathname;
+            document.getElementById('unsupported-method').textContent = methodParam;
+            
+            return methodParam;
+        }
+        
+        // Popular grid de métodos
+        function populateMethodsGrid() {
+            const grid = document.getElementById('methods-grid');
+            
+            grid.innerHTML = httpMethods.map(method => `
+                <div class="method-item ${method.status}">
+                    <div class="method-name">${method.name}</div>
+                    <div class="method-status status-${method.status}">
+                        ${method.status.toUpperCase()}
+                    </div>
+                    <div style="font-size: 0.8rem; color: #6b7280; margin-top: 8px;">
+                        ${method.description}
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        // Inicializar página
+        window.addEventListener('load', function() {
+            const unsupportedMethod = detectUnsupportedMethod();
+            populateMethodsGrid();
+            
+            // Destacar método não suportado
+            highlightUnsupportedMethod(unsupportedMethod);
+            
+            // Mostrar dica baseada no método
+            showMethodSpecificTip(unsupportedMethod);
+        });
+        
+        // Destacar método não suportado
+        function highlightUnsupportedMethod(method) {
+            const methodItems = document.querySelectorAll('.method-item');
+            methodItems.forEach(item => {
+                const methodName = item.querySelector('.method-name').textContent;
+                if (methodName === method) {
+                    item.style.transform = 'scale(1.05)';
+                    item.style.boxShadow = '0 5px 15px rgba(0,0,0,0.2)';
+                    item.style.zIndex = '1';
+                }
+            });
+        }
+        
+        // Mostrar dica específica do método
+        function showMethodSpecificTip(method) {
+            const tips = {
+                'POST': 'For submitting form data, you might need to use GET with query parameters instead.',
+                'PUT': 'For updating resources, consider using GET to retrieve and then contact the administrator.',
+                'DELETE': 'Removing resources is not yet supported in this server version.',
+                'PATCH': 'Partial updates require full PUT or DELETE functionality first.',
+                'OPTIONS': 'CORS and preflight requests are not yet implemented.',
+                'TRACE': 'Diagnostic methods are disabled for security reasons.',
+                'CONNECT': 'Proxy tunneling is not supported in this configuration.'
+            };
+            
+            if (tips[method]) {
+                const tipBox = document.createElement('div');
+                tipBox.className = 'feature-info';
+                tipBox.style.marginTop = '20px';
+                tipBox.innerHTML = `
+                    <h3><span class="feature-icon">💡</span> Specific Tip for ${method}</h3>
+                    <p>${tips[method]}</p>
+                `;
+                document.querySelector('.feature-info').after(tipBox);
+            }
+        }
+        
+        // Mostrar detalhes técnicos
+        function showTechnicalDetails() {
+            const details = `
+                Technical Details - HTTP Method Not Implemented:
+                
+                Server: Concurrent HTTP Server 1.0
+                Architecture: Single-thread, process-based
+                Protocol: HTTP/1.1
+                
+                Current Limitations:
+                • Only GET and HEAD methods implemented
+                • No request body parsing (for POST/PUT)
+                • No persistent connections
+                • No chunked transfer encoding
+                • No compression support
+                
+                Implementation Complexity:
+                GET/HEAD: ★☆☆☆☆ (Simple)
+                POST: ★★☆☆☆ (Medium - requires body parsing)
+                PUT/DELETE: ★★★☆☆ (Complex - requires state management)
+                PATCH/OPTIONS: ★★★★☆ (Very complex)
+                
+                Development Status:
+                This is a student project for educational purposes.
+                Full HTTP/1.1 compliance is not the primary goal.
+                
+                GitHub Repository: (Not yet public)
+                Documentation: See project report PDF
+            `;
+            
+            alert(details);
+        }
+        
+        // Solicitar feature
+        function requestFeature() {
+            const method = document.getElementById('unsupported-method').textContent;
+            
+            const form = `
+                <div style="text-align: left; max-width: 500px; margin: 0 auto;">
+                    <h3 style="color: #7c3aed; margin-bottom: 20px;">Request Feature Implementation</h3>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 5px; color: #374151; font-weight: 500;">
+                            HTTP Method:
+                        </label>
+                        <input type="text" value="${method}" readonly 
+                               style="width: 100%; padding: 10px; border: 2px solid #e5e7eb; border-radius: 6px; background: #f9fafb;">
+                    </div>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <label style="display: block; margin-bottom: 5px; color: #374151; font-weight: 500;">
+                            Your Email:
+                        </label>
+                        <input type="email" id="feature-email" placeholder="you@example.com"
+                               style="width: 100%; padding: 10px; border: 2px solid #e5e7eb; border-radius: 6px;">
+                    </div>
+                    
+                    <div style="margin-bottom: 20px;">
+                        <label style="display: block; margin-bottom: 5px; color: #374151; font-weight: 500;">
+                            Use Case Description:
+                        </label>
+                        <textarea id="feature-desc" rows="4" placeholder="Describe how you would use this feature..."
+                                  style="width: 100%; padding: 10px; border: 2px solid #e5e7eb; border-radius: 6px; font-family: inherit;"></textarea>
+                    </div>
+                    
+                    <div style="display: flex; gap: 10px;">
+                        <button onclick="submitFeatureRequest('${method}')" 
+                                style="flex: 1; padding: 12px; background: #8b5cf6; color: white; border: none; border-radius: 6px; cursor: pointer;">
+                            Submit Request
+                        </button>
+                        <button onclick="alert('Feature request cancelled.');" 
+                                style="flex: 1; padding: 12px; background: #6b7280; color: white; border: none; border-radius: 6px; cursor: pointer;">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            `;
+            
+            // Criar modal
+            const modal = document.createElement('div');
+            modal.style.position = 'fixed';
+            modal.style.top = '0';
+            modal.style.left = '0';
+            modal.style.right = '0';
+            modal.style.bottom = '0';
+            modal.style.background = 'rgba(0,0,0,0.5)';
+            modal.style.display = 'flex';
+            modal.style.alignItems = 'center';
+            modal.style.justifyContent = 'center';
+            modal.style.zIndex = '1000';
+            
+            const modalContent = document.createElement('div');
+            modalContent.style.background = 'white';
+            modalContent.style.padding = '30px';
+            modalContent.style.borderRadius = '12px';
+            modalContent.style.maxWidth = '600px';
+            modalContent.style.width = '90%';
+            modalContent.style.maxHeight = '90vh';
+            modalContent.style.overflowY = 'auto';
+            modalContent.innerHTML = form;
+            
+            modal.appendChild(modalContent);
+            document.body.appendChild(modal);
+            
+            // Fechar modal ao clicar fora
+            modal.addEventListener('click', function(e) {
+                if (e.target === modal) {
+                    document.body.removeChild(modal);
+                }
+            });
+        }
+        
+        // Enviar solicitação de feature
+        function submitFeatureRequest(method) {
+            const email = document.getElementById('feature-email')?.value || 'not provided';
+            const desc = document.getElementById('feature-desc')?.value || 'no description';
+            
+            // Simular envio
+            alert(`Feature request submitted!\n\nMethod: ${method}\nEmail: ${email}\n\nThank you for your feedback. The development team will review your request.`);
+            
+            // Fechar modal
+            const modal = document.querySelector('div[style*="position: fixed"]');
+            if (modal) document.body.removeChild(modal);
+            
+            // Adicionar ao roadmap (simulação)
+            const roadmapTimeline = document.querySelector('.roadmap-timeline');
+            const newItem = document.createElement('div');
+            newItem.className = 'roadmap-item';
+            newItem.innerHTML = `
+                <div class="roadmap-title">${method} Method Support</div>
+                <div class="roadmap-desc">Requested by user</div>
+                <div class="roadmap-date">Under consideration</div>
+            `;
+            roadmapTimeline.appendChild(newItem);
+        }
+        
+        // Adicionar teclas de atalho
+        document.addEventListener('keydown', function(e) {
+            // F para feature request
+            if (e.key === 'f' || e.key === 'F') {
+                e.preventDefault();
+                requestFeature();
+            }
+            
+            // D para detalhes técnicos
+            if (e.key === 'd' || e.key === 'D') {
+                e.preventDefault();
+                showTechnicalDetails();
+            }
+            
+            // R para recarregar
+            if (e.key === 'r' && e.ctrlKey) {
+                e.preventDefault();
+                window.location.reload();
+            }
+        });
+        
+        // Log no console
+        console.log('%c⚡ HTTP Method Implementation Status', 'color: #8b5cf6; font-weight: bold;');
+        console.table(httpMethods.map(m => ({ Method: m.name, Status: m.status, Description: m.description })));
+    </script>
+</body>
+</html>

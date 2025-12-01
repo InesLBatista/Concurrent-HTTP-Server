@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>404 - Page Not Found</title>
+    <link rel="stylesheet" href="/style.css">
+    <style>
+        .error-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 60px 30px;
+            text-align: center;
+        }
+        
+        .error-code {
+            font-size: 8rem;
+            font-weight: 900;
+            background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            margin-bottom: 20px;
+            line-height: 1;
+        }
+        
+        .error-title {
+            font-size: 2.5rem;
+            color: #1f2937;
+            margin-bottom: 20px;
+        }
+        
+        .error-message {
+            color: #6b7280;
+            font-size: 1.2rem;
+            max-width: 600px;
+            margin: 0 auto 40px;
+            line-height: 1.6;
+        }
+        
+        .search-container {
+            max-width: 600px;
+            margin: 40px auto;
+            padding: 30px;
+            background: #f8fafc;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        
+        .search-box {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .search-input {
+            flex: 1;
+            padding: 15px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        .search-input:focus {
+            outline: none;
+            border-color: #8b5cf6;
+            box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+        }
+        
+        .search-button {
+            padding: 15px 30px;
+            background: #8b5cf6;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .search-button:hover {
+            background: #7c3aed;
+            transform: translateY(-2px);
+        }
+        
+        .suggested-pages {
+            margin-top: 30px;
+            text-align: left;
+        }
+        
+        .suggested-pages h3 {
+            color: #4b5563;
+            margin-bottom: 15px;
+            font-size: 1.2rem;
+        }
+        
+        .page-list {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        .page-list li {
+            margin-bottom: 10px;
+        }
+        
+        .page-link {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px 15px;
+            background: white;
+            border-radius: 8px;
+            text-decoration: none;
+            color: #4b5563;
+            border: 1px solid #e5e7eb;
+            transition: all 0.3s ease;
+        }
+        
+        .page-link:hover {
+            background: #f3f4f6;
+            border-color: #8b5cf6;
+            transform: translateX(5px);
+        }
+        
+        .page-icon {
+            color: #8b5cf6;
+            font-size: 1.2rem;
+        }
+        
+        .error-details {
+            background: #f3f4f6;
+            padding: 25px;
+            border-radius: 12px;
+            margin: 40px auto;
+            max-width: 600px;
+            text-align: left;
+        }
+        
+        .error-details h3 {
+            color: #374151;
+            margin-bottom: 15px;
+            font-size: 1.2rem;
+        }
+        
+        .error-details ul {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        .error-details li {
+            padding: 10px 0;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .error-details li:last-child {
+            border-bottom: none;
+        }
+        
+        .error-icon {
+            color: #8b5cf6;
+            font-size: 1.2rem;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 30px;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            background: #8b5cf6;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        
+        .btn:hover {
+            background: #7c3aed;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(123, 92, 246, 0.3);
+        }
+        
+        .btn-secondary {
+            background: #6b7280;
+        }
+        
+        .btn-secondary:hover {
+            background: #4b5563;
+        }
+        
+        .btn-outline {
+            background: transparent;
+            color: #8b5cf6;
+            border: 2px solid #8b5cf6;
+        }
+        
+        .btn-outline:hover {
+            background: #8b5cf6;
+            color: white;
+        }
+        
+        .animation-container {
+            margin: 40px auto;
+            max-width: 300px;
+        }
+        
+        .lost-illustration {
+            width: 100%;
+            height: 200px;
+            background: linear-gradient(135deg, #f3f4f6, #e5e7eb);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .lost-icon {
+            font-size: 4rem;
+            color: #9ca3af;
+            animation: float 3s ease-in-out infinite;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-20px); }
+        }
+        
+        .server-info {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #e5e7eb;
+            color: #9ca3af;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="error-container">
+            <div class="error-code">404</div>
+            <h1 class="error-title">Page Not Found</h1>
+            
+            <p class="error-message">
+                The page you're looking for doesn't exist or has been moved.
+                Don't worry though - let's help you find your way back!
+            </p>
+            
+            <div class="animation-container">
+                <div class="lost-illustration">
+                    <div class="lost-icon">🔍</div>
+                </div>
+            </div>
+            
+            <div class="search-container">
+                <h3>Search for what you need:</h3>
+                <div class="search-box">
+                    <input type="text" class="search-input" id="searchInput" 
+                           placeholder="What are you looking for?">
+                    <button class="search-button" onclick="searchSite()">Search</button>
+                </div>
+                
+                <div class="suggested-pages">
+                    <h3>Suggested Pages:</h3>
+                    <ul class="page-list">
+                        <li>
+                            <a href="/" class="page-link">
+                                <span class="page-icon">🏠</span>
+                                <span>Home Page</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="/test.txt" class="page-link">
+                                <span class="page-icon">📄</span>
+                                <span>Test File</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="/errors/403.html" class="page-link">
+                                <span class="page-icon">🔒</span>
+                                <span>403 Forbidden Example</span>
+                            </a>
+                        </li>
+                        <li>
+                            <a href="/errors/500.html" class="page-link">
+                                <span class="page-icon">⚡</span>
+                                <span>500 Error Example</span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="error-details">
+                <h3>Error Information:</h3>
+                <ul>
+                    <li>
+                        <span class="error-icon">📄</span>
+                        <span>Status: <strong>404 Not Found</strong></span>
+                    </li>
+                    <li>
+                        <span class="error-icon">🕒</span>
+                        <span>Time: <span id="timestamp">Loading...</span></span>
+                    </li>
+                    <li>
+                        <span class="error-icon">🌐</span>
+                        <span>Server: Concurrent HTTP Server 1.0</span>
+                    </li>
+                    <li>
+                        <span class="error-icon">🔗</span>
+                        <span>Requested URL: <span id="requested-url">Unknown</span></span>
+                    </li>
+                </ul>
+            </div>
+            
+            <div class="action-buttons">
+                <a href="/" class="btn">🏠 Go to Home Page</a>
+                <a href="#" onclick="history.back()" class="btn btn-secondary">↩️ Go Back</a>
+                <button onclick="reloadPage()" class="btn">🔄 Reload Page</button>
+                <button onclick="contactSupport()" class="btn btn-outline">📧 Contact Support</button>
+            </div>
+            
+            <div class="server-info">
+                <p>Concurrent HTTP Server | Authors: Inês Batista (124877) & Maria Quinteiro (124996)</p>
+                <p>Sistemas Operativos 2024/2025 | Error Page: 404 Not Found</p>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Preencher informações dinâmicas
+        document.getElementById('timestamp').textContent = new Date().toLocaleString('en-US');
+        document.getElementById('requested-url').textContent = window.location.pathname;
+        
+        // Função para pesquisar no site (simulação)
+        function searchSite() {
+            const searchTerm = document.getElementById('searchInput').value;
+            if (searchTerm.trim()) {
+                alert(`Searching for: "${searchTerm}"\n\nThis would normally search the site, but this is a demo.`);
+                document.getElementById('searchInput').value = '';
+            }
+        }
+        
+        // Permitir pesquisa com Enter
+        document.getElementById('searchInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                searchSite();
+            }
+        });
+        
+        // Função para recarregar a página
+        function reloadPage() {
+            window.location.reload();
+        }
+        
+        // Função para contactar suporte
+        function contactSupport() {
+            const subject = encodeURIComponent('404 Error Report - Concurrent HTTP Server');
+            const body = encodeURIComponent(
+                `I encountered a 404 error at:\n` +
+                `URL: ${window.location.href}\n` +
+                `Time: ${new Date().toLocaleString()}\n\n` +
+                `I was trying to access: ${window.location.pathname}\n\n` +
+                `Additional details:\n`
+            );
+            
+            // Simular abertura de email
+            alert('Please email the server administrator with the error details shown above.');
+        }
+        
+        // Sugerir correções baseadas no URL
+        function suggestCorrections() {
+            const path = window.location.pathname;
+            const suggestions = [];
+            
+            // Verificar extensões comuns
+            const commonExtensions = ['.html', '.htm', '.php', '.asp', '.aspx'];
+            const hasExtension = commonExtensions.some(ext => path.endsWith(ext));
+            
+            if (!hasExtension && path.includes('.')) {
+                suggestions.push('The URL might have an incorrect file extension');
+            }
+            
+            // Verificar por typos comuns
+            const commonTypos = {
+                'inde.html': 'index.html',
+                'hom.html': 'home.html',
+                'indx.html': 'index.html'
+            };
+            
+            for (const [typo, correction] of Object.entries(commonTypos)) {
+                if (path.includes(typo)) {
+                    suggestions.push(`Did you mean "${correction}" instead of "${typo}"?`);
+                }
+            }
+            
+            if (suggestions.length > 0) {
+                const suggestionBox = document.createElement('div');
+                suggestionBox.className = 'error-details';
+                suggestionBox.style.marginTop = '20px';
+                suggestionBox.innerHTML = `
+                    <h3>Suggestions based on URL analysis:</h3>
+                    <ul>
+                        ${suggestions.map(suggestion => 
+                            `<li style="color: #7c3aed;">💡 ${suggestion}</li>`
+                        ).join('')}
+                    </ul>
+                `;
+                document.querySelector('.error-details').after(suggestionBox);
+            }
+        }
+        
+        // Executar sugestões ao carregar
+        window.addEventListener('load', suggestCorrections);
+        
+        // Animar a ilustração
+        const lostIcon = document.querySelector('.lost-icon');
+        if (lostIcon) {
+            setInterval(() => {
+                const icons = ['🔍', '🧭', '🗺️', '📍', '❓'];
+                const randomIcon = icons[Math.floor(Math.random() * icons.length)];
+                lostIcon.textContent = randomIcon;
+            }, 5000);
+        }
+    </script>
+</body>
+</html>

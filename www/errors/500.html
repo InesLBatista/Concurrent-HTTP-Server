@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>500 - Internal Server Error</title>
+    <link rel="stylesheet" href="/style.css">
+    <style>
+        .error-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 60px 30px;
+            text-align: center;
+        }
+        
+        .error-code {
+            font-size: 8rem;
+            font-weight: 900;
+            background: linear-gradient(135deg, #ec4899, #db2777);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            margin-bottom: 20px;
+            line-height: 1;
+        }
+        
+        .error-title {
+            font-size: 2.5rem;
+            color: #1f2937;
+            margin-bottom: 20px;
+        }
+        
+        .error-message {
+            color: #6b7280;
+            font-size: 1.2rem;
+            max-width: 600px;
+            margin: 0 auto 40px;
+            line-height: 1.6;
+        }
+        
+        .error-alert {
+            background: #fdf2f8;
+            padding: 25px;
+            border-radius: 12px;
+            margin: 40px auto;
+            max-width: 600px;
+            border-left: 4px solid #ec4899;
+            text-align: left;
+        }
+        
+        .error-alert h3 {
+            color: #9d174d;
+            margin-bottom: 15px;
+            font-size: 1.3rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .error-icon {
+            color: #ec4899;
+            font-size: 1.5rem;
+        }
+        
+        .technical-details {
+            background: #1f2937;
+            color: #f9fafb;
+            padding: 20px;
+            border-radius: 8px;
+            font-family: monospace;
+            margin: 20px 0;
+            overflow-x: auto;
+        }
+        
+        .technical-details pre {
+            margin: 0;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-size: 0.9rem;
+            line-height: 1.4;
+        }
+        
+        .recovery-steps {
+            background: #f0f9ff;
+            padding: 25px;
+            border-radius: 12px;
+            margin: 30px 0;
+            border-left: 4px solid #3b82f6;
+        }
+        
+        .recovery-steps h3 {
+            color: #1e40af;
+            margin-bottom: 15px;
+        }
+        
+        .steps-list {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        .steps-list li {
+            padding: 12px 0;
+            border-bottom: 1px solid #dbeafe;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .steps-list li:last-child {
+            border-bottom: none;
+        }
+        
+        .step-number {
+            width: 30px;
+            height: 30px;
+            background: #3b82f6;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+        
+        .monitoring-panel {
+            background: #fef3c7;
+            padding: 20px;
+            border-radius: 12px;
+            margin: 30px 0;
+            border: 1px solid #fbbf24;
+        }
+        
+        .monitoring-panel h3 {
+            color: #92400e;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .status-item {
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid #fbbf24;
+        }
+        
+        .status-label {
+            font-size: 0.9rem;
+            color: #92400e;
+            margin-bottom: 5px;
+        }
+        
+        .status-value {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #1f2937;
+        }
+        
+        .status-value.ok {
+            color: #10b981;
+        }
+        
+        .status-value.error {
+            color: #ef4444;
+        }
+        
+        .status-value.warning {
+            color: #f59e0b;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 30px;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            background: #ec4899;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        
+        .btn:hover {
+            background: #db2777;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(219, 39, 119, 0.3);
+        }
+        
+        .btn-secondary {
+            background: #6b7280;
+        }
+        
+        .btn-secondary:hover {
+            background: #4b5563;
+        }
+        
+        .btn-recovery {
+            background: #10b981;
+        }
+        
+        .btn-recovery:hover {
+            background: #059669;
+        }
+        
+        .server-diagnostics {
+            margin-top: 40px;
+            padding: 25px;
+            background: #f8fafc;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .diagnostics-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .diagnostics-header h3 {
+            color: #374151;
+            margin: 0;
+        }
+        
+        .refresh-btn {
+            padding: 8px 16px;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        
+        .diagnostics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+        }
+        
+        .diagnostic-item {
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            border: 1px solid #e5e7eb;
+        }
+        
+        .diagnostic-label {
+            font-size: 0.85rem;
+            color: #6b7280;
+            margin-bottom: 5px;
+        }
+        
+        .diagnostic-value {
+            font-size: 1rem;
+            font-weight: 600;
+            color: #1f2937;
+            font-family: monospace;
+        }
+        
+        .support-contact {
+            margin-top: 30px;
+            padding: 20px;
+            background: #dbeafe;
+            border-radius: 12px;
+            color: #1e40af;
+        }
+        
+        .server-info {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #e5e7eb;
+            color: #9ca3af;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="error-container">
+            <div class="error-code">500</div>
+            <h1 class="error-title">Internal Server Error</h1>
+            
+            <p class="error-message">
+                Something went wrong on our server while processing your request.
+                Our technical team has been notified and is working to fix the issue.
+            </p>
+            
+            <div class="error-alert">
+                <h3>
+                    <span class="error-icon">⚡</span>
+                    Server Error Detected
+                </h3>
+                <p>
+                    The server encountered an unexpected condition that prevented it
+                    from fulfilling the request. This is usually a temporary issue.
+                </p>
+                
+                <div class="technical-details">
+                    <pre>
+[ERROR] 500 Internal Server Error
+[TIME] <span id="error-time">Unknown</span>
+[REQUEST_ID] <span id="request-id">SRV-${Math.random().toString(36).substr(2, 9).toUpperCase()}</span>
+[STACK] Error processing request
+[COMPONENT] HTTP Request Handler
+[STATUS] Critical
+                    </pre>
+                </div>
+            </div>
+            
+            <div class="recovery-steps">
+                <h3>What you can do:</h3>
+                <ul class="steps-list">
+                    <li>
+                        <div class="step-number">1</div>
+                        <div>
+                            <strong>Wait a few moments</strong>
+                            <p>The issue might resolve itself automatically</p>
+                        </div>
+                    </li>
+                    <li>
+                        <div class="step-number">2</div>
+                        <div>
+                            <strong>Refresh the page</strong>
+                            <p>Press F5 or click the reload button</p>
+                        </div>
+                    </li>
+                    <li>
+                        <div class="step-number">3</div>
+                        <div>
+                            <strong>Clear your browser cache</strong>
+                            <p>Sometimes cached data causes issues</p>
+                        </div>
+                    </li>
+                    <li>
+                        <div class="step-number">4</div>
+                        <div>
+                            <strong>Try again later</strong>
+                            <p>Our team is working to fix the problem</p>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+            
+            <div class="monitoring-panel">
+                <h3>
+                    <span class="error-icon">📊</span>
+                    Server Status Monitor
+                </h3>
+                <div class="status-grid">
+                    <div class="status-item">
+                        <div class="status-label">HTTP Server</div>
+                        <div class="status-value error" id="status-http">ERROR</div>
+                    </div>
+                    <div class="status-item">
+                        <div class="status-label">File System</div>
+                        <div class="status-value ok" id="status-fs">OK</div>
+                    </div>
+                    <div class="status-item">
+                        <div class="status-label">Memory Usage</div>
+                        <div class="status-value warning" id="status-memory">HIGH</div>
+                    </div>
+                    <div class="status-item">
+                        <div class="status-label">Connection Pool</div>
+                        <div class="status-value ok" id="status-connections">OK</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="server-diagnostics">
+                <div class="diagnostics-header">
+                    <h3>Server Diagnostics</h3>
+                    <button class="refresh-btn" onclick="runDiagnostics()">🔄 Refresh</button>
+                </div>
+                <div class="diagnostics-grid" id="diagnostics-grid">
+                    <!-- Diagnostics will be populated here -->
+                </div>
+            </div>
+            
+            <div class="support-contact">
+                <p>
+                    <strong>Need immediate assistance?</strong><br>
+                    The server administrators have been automatically notified.
+                    If the problem persists, please try again in a few minutes.
+                </p>
+            </div>
+            
+            <div class="action-buttons">
+                <button onclick="reloadPage()" class="btn">🔄 Reload Page</button>
+                <a href="/" class="btn btn-recovery">🏠 Go to Home Page</a>
+                <a href="#" onclick="history.back()" class="btn btn-secondary">↩️ Go Back</a>
+                <button onclick="showDetailedError()" class="btn">🔧 Technical Details</button>
+            </div>
+            
+            <div class="server-info">
+                <p>Concurrent HTTP Server Error System | Incident Reported</p>
+                <p>Authors: Inês Batista (124877) & Maria Quinteiro (124996) | Sistemas Operativos 2024/2025</p>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Preencher informações dinâmicas
+        document.getElementById('error-time').textContent = new Date().toISOString();
+        
+        // Função para executar diagnósticos
+        function runDiagnostics() {
+            const diagnostics = [
+                { label: 'Server Uptime', value: `${Math.floor(Math.random() * 100)} minutes` },
+                { label: 'Active Connections', value: Math.floor(Math.random() * 100) },
+                { label: 'Memory Available', value: `${Math.floor(Math.random() * 1000)} MB` },
+                { label: 'CPU Usage', value: `${Math.floor(Math.random() * 100)}%` },
+                { label: 'Disk Space', value: `${Math.floor(Math.random() * 100)}% free` },
+                { label: 'Last Error', value: new Date().toLocaleTimeString() },
+                { label: 'Request Queue', value: Math.floor(Math.random() * 50) },
+                { label: 'Cache Status', value: Math.random() > 0.5 ? 'Active' : 'Disabled' }
+            ];
+            
+            const grid = document.getElementById('diagnostics-grid');
+            grid.innerHTML = diagnostics.map(diag => `
+                <div class="diagnostic-item">
+                    <div class="diagnostic-label">${diag.label}</div>
+                    <div class="diagnostic-value">${diag.value}</div>
+                </div>
+            `).join('');
+            
+            // Animar o botão de refresh
+            const refreshBtn = document.querySelector('.refresh-btn');
+            refreshBtn.textContent = '✓ Refreshed';
+            refreshBtn.style.background = '#10b981';
+            
+            setTimeout(() => {
+                refreshBtn.textContent = '🔄 Refresh';
+                refreshBtn.style.background = '';
+            }, 2000);
+        }
+        
+        // Executar diagnósticos iniciais
+        window.addEventListener('load', runDiagnostics);
+        
+        // Simular status do servidor
+        function updateServerStatus() {
+            const statuses = ['ok', 'error', 'warning'];
+            const randomStatus = statuses[Math.floor(Math.random() * statuses.length)];
+            
+            document.getElementById('status-http').className = `status-value ${randomStatus}`;
+            document.getElementById('status-http').textContent = randomStatus.toUpperCase();
+        }
+        
+        // Atualizar status periodicamente
+        setInterval(updateServerStatus, 5000);
+        updateServerStatus(); // Executar imediatamente
+        
+        // Função para recarregar a página
+        function reloadPage() {
+            window.location.reload();
+        }
+        
+        // Função para mostrar detalhes técnicos
+        function showDetailedError() {
+            const details = `
+                Technical Error Details:
+                
+                Error Code: 500
+                Error Type: Internal Server Error
+                Timestamp: ${new Date().toISOString()}
+                Request ID: SRV-${Math.random().toString(36).substr(2, 9).toUpperCase()}
+                
+                Possible Causes:
+                1. Server configuration error
+                2. Resource limit exceeded
+                3. Database connection failure
+                4. Script execution timeout
+                5. Permission denied on file access
+                
+                Automated Actions Taken:
+                ✓ Error logged to system
+                ✓ Administrators notified
+                ✓ Automatic recovery initiated
+                ✓ Incident ticket created
+                
+                Next Steps:
+                - Wait for automatic recovery (ETA: 2-5 minutes)
+                - If persistent, manual intervention required
+                - Check server logs for specific error codes
+            `;
+            
+            alert(details);
+        }
+        
+        // Adicionar teclas de atalho
+        document.addEventListener('keydown', function(e) {
+            // F5 para recarregar
+            if (e.key === 'F5') {
+                e.preventDefault();
+                reloadPage();
+            }
+            
+            // Ctrl+R para recarregar
+            if (e.ctrlKey && e.key === 'r') {
+                e.preventDefault();
+                reloadPage();
+            }
+            
+            // Ctrl+D para diagnósticos
+            if (e.ctrlKey && e.key === 'd') {
+                e.preventDefault();
+                runDiagnostics();
+            }
+            
+            // Ctrl+E para detalhes de erro
+            if (e.ctrlKey && e.key === 'e') {
+                e.preventDefault();
+                showDetailedError();
+            }
+        });
+        
+        // Mostrar instruções de teclas de atalho
+        setTimeout(() => {
+            console.log('%c⚡ Server Error Debug Mode Active', 'color: #ec4899; font-weight: bold;');
+            console.log('%cAvailable shortcuts:', 'color: #6b7280;');
+            console.log('%c• F5 or Ctrl+R: Reload page', 'color: #6b7280;');
+            console.log('%c• Ctrl+D: Run diagnostics', 'color: #6b7280;');
+            console.log('%c• Ctrl+E: Show error details', 'color: #6b7280;');
+        }, 1000);
+    </script>
+</body>
+</html>

@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Concurrent HTTP Server - Single Thread</title>
+    <link rel="stylesheet" href="/style.css">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header>
+            <div class="header-content">
+                <h1>⚡ Concurrent HTTP Server</h1>
+                <p class="subtitle">Single-Thread Implementation</p>
+                <div class="status-indicator">
+                    <span class="status-dot online"></span>
+                    <span class="status-text">SERVER ONLINE</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Server Information -->
+        <section class="server-info card">
+            <h2>📊 Server Information</h2>
+            <div class="info-grid">
+                <div class="info-item">
+                    <div class="info-icon">👤</div>
+                    <h3>Authors</h3>
+                    <p>Inês Batista (124877)<br>Maria Quinteiro (124996)</p>
+                </div>
+                <div class="info-item">
+                    <div class="info-icon">📚</div>
+                    <h3>Course</h3>
+                    <p>Sistemas Operativos<br>2024/2025</p>
+                </div>
+                <div class="info-item">
+                    <div class="info-icon">🏗️</div>
+                    <h3>Architecture</h3>
+                    <p>Single-Thread<br>Day 3 Implementation</p>
+                </div>
+                <div class="info-item">
+                    <div class="info-icon">🔌</div>
+                    <h3>Connection</h3>
+                    <p>Port: <span id="server-port">8080</span><br>Threads: Single</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Features -->
+        <section class="features card">
+            <h2>✨ Implemented Features</h2>
+            <div class="features-list">
+                <div class="feature">
+                    <span class="feature-check">✅</span>
+                    <div>
+                        <h3>Socket with SO_REUSEADDR</h3>
+                        <p>TCP socket with address reuse option</p>
+                    </div>
+                </div>
+                <div class="feature">
+                    <span class="feature-check">✅</span>
+                    <div>
+                        <h3>Static File Serving</h3>
+                        <p>Serves HTML, CSS, JS, images, and text files</p>
+                    </div>
+                </div>
+                <div class="feature">
+                    <span class="feature-check">✅</span>
+                    <div>
+                        <h3>MIME Type Detection</h3>
+                        <p>Automatic content-type headers based on file extensions</p>
+                    </div>
+                </div>
+                <div class="feature">
+                    <span class="feature-check">✅</span>
+                    <div>
+                        <h3>Error Handling</h3>
+                        <p>Custom error pages for 404, 403, 500, 503 errors</p>
+                    </div>
+                </div>
+                <div class="feature">
+                    <span class="feature-check">✅</span>
+                    <div>
+                        <h3>Path Traversal Protection</h3>
+                        <p>Security against directory traversal attacks</p>
+                    </div>
+                </div>
+                <div class="feature">
+                    <span class="feature-check">✅</span>
+                    <div>
+                        <h3>Graceful Shutdown</h3>
+                        <p>Proper signal handling for Ctrl+C termination</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Test Section -->
+        <section class="test-section card">
+            <h2>🧪 Test the Server</h2>
+            <div class="test-buttons">
+                <button class="test-btn" onclick="testEndpoint('/')">
+                    <span class="btn-icon">🏠</span>
+                    <span class="btn-text">Home Page</span>
+                </button>
+                <button class="test-btn" onclick="testEndpoint('/test.txt')">
+                    <span class="btn-icon">📄</span>
+                    <span class="btn-text">Text File</span>
+                </button>
+                <button class="test-btn warning" onclick="testEndpoint('/nonexistent.html')">
+                    <span class="btn-icon">❌</span>
+                    <span class="btn-text">Test 404</span>
+                </button>
+                <button class="test-btn danger" onclick="testEndpoint('/../etc/passwd')">
+                    <span class="btn-icon">🛡️</span>
+                    <span class="btn-text">Test Security</span>
+                </button>
+            </div>
+
+            <div class="curl-examples">
+                <h3>📖 cURL Examples:</h3>
+                <pre class="code-block">
+# Get home page
+curl http://localhost:<span id="curl-port">8080</span>/
+
+# Get text file
+curl http://localhost:<span id="curl-port2">8080</span>/test.txt
+
+# Get only headers
+curl -I http://localhost:<span id="curl-port3">8080</span>/
+
+# Test error 404
+curl -v http://localhost:<span id="curl-port4">8080</span>/nonexistent.html
+
+# Test with custom port (if different)
+curl http://localhost:9000/
+                </pre>
+            </div>
+
+            <div id="test-results" class="test-results"></div>
+        </section>
+
+        <!-- Architecture -->
+        <section class="architecture card">
+            <h2>🏗️ System Architecture</h2>
+            <div class="architecture-diagram">
+                <div class="arch-step">
+                    <div class="step-number">1</div>
+                    <div class="step-content">
+                        <h4>Client Request</h4>
+                        <p>Browser or cURL sends HTTP request</p>
+                    </div>
+                </div>
+                <div class="arch-arrow">→</div>
+                <div class="arch-step">
+                    <div class="step-number">2</div>
+                    <div class="step-content">
+                        <h4>Socket Accept</h4>
+                        <p>Server accepts TCP connection</p>
+                    </div>
+                </div>
+                <div class="arch-arrow">→</div>
+                <div class="arch-step">
+                    <div class="step-number">3</div>
+                    <div class="step-content">
+                        <h4>Request Parsing</h4>
+                        <p>HTTP method, path, and version parsed</p>
+                    </div>
+                </div>
+                <div class="arch-arrow">→</div>
+                <div class="arch-step">
+                    <div class="step-number">4</div>
+                    <div class="step-content">
+                        <h4>File Serving</h4>
+                        <p>Static file read from disk and sent</p>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Directory Structure -->
+        <section class="directory card">
+            <h2>📁 Project Structure</h2>
+            <pre class="directory-structure">
+concurrent-http-server/
+├── src/
+│   └── main.c                 # Single-thread server implementation
+├── www/                       # Document root
+│   ├── index.html            # This page (you're viewing it)
+│   ├── style.css             # CSS styles
+│   ├── script.js             # JavaScript
+│   ├── test.txt              # Test file
+│   ├── favicon.ico           # Server icon
+│   └── errors/               # Custom error pages
+│       ├── 400.html          # Bad Request
+│       ├── 403.html          # Forbidden
+│       ├── 404.html          # Not Found
+│       ├── 500.html          # Internal Server Error
+│       └── 503.html          # Service Unavailable
+├── Makefile                   # Build system
+└── server.conf               # Configuration file
+            </pre>
+        </section>
+
+        <!-- Footer -->
+        <footer>
+            <div class="footer-content">
+                <div class="footer-info">
+                    <p><strong>Sistemas Operativos 2024/2025</strong></p>
+                    <p>Inês Batista (124877) & Maria Quinteiro (124996)</p>
+                </div>
+                <div class="footer-stats">
+                    <p>Server Status: <span class="status online">Online</span></p>
+                    <p>Current Time: <span id="current-time">Loading...</span></p>
+                    <p>Requests Today: <span id="request-count">0</span></p>
+                </div>
+                <div class="footer-links">
+                    <a href="/test.txt">Test File</a>
+                    <a href="/errors/404.html">404 Example</a>
+                    <a href="/errors/500.html">500 Example</a>
+                    <a href="#" onclick="refreshPage()">Refresh</a>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <script src="/script.js"></script>
+</body>
+</html>

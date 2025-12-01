@@ -24,6 +24,9 @@ SRCDIR = src
 # Pasta para ficheiros objeto temporários
 OBJDIR = obj
 
+# Pasta para conteúdo web
+WWWDIR = www
+
 # Nome do programa final
 TARGET = server
 
@@ -42,15 +45,15 @@ OBJECTS = $(SOURCES:$(SRCDIR)/%.c=$(OBJDIR)/%.o)
 
 
 # Target padrão: 'make' ou 'make all'
-all: $(TARGET)
+all: setup $(TARGET)
 
 # Versão otimizada: 'make release'
 release: CFLAGS += $(RELEASE_FLAGS)
-release: $(TARGET)
+release: setup $(TARGET)
 
 # Versão de desenvolvimento: 'make debug'
 debug: CFLAGS += $(DEBUG_FLAGS)
-debug: $(TARGET)
+debug: setup $(TARGET)
 
 # Regra principal: criar o executável final
 $(TARGET): $(OBJECTS)
@@ -63,6 +66,26 @@ $(OBJDIR)/%.o: $(SRCDIR)/%.c | $(OBJDIR)
 # Criar pasta obj se não existir
 $(OBJDIR):
 	mkdir -p $(OBJDIR)
+
+# Criar estrutura de diretórios
+setup: $(OBJDIR) www_dirs config_file
+
+# Criar diretórios www
+www_dirs:
+	mkdir -p $(WWWDIR)/errors $(WWWDIR)/images $(WWWDIR)/scripts
+
+# Criar ficheiro de configuração se não existir
+config_file:
+	@if [ ! -f "server.conf" ]; then \
+		echo "PORT=8080" > server.conf; \
+		echo "DOCUMENT_ROOT=./www" >> server.conf; \
+		echo "NUM_WORKERS=4" >> server.conf; \
+		echo "THREADS_PER_WORKER=10" >> server.conf; \
+		echo "MAX_QUEUE_SIZE=100" >> server.conf; \
+		echo "LOG_FILE=access.log" >> server.conf; \
+		echo "CACHE_SIZE_MB=10" >> server.conf; \
+		echo "TIMEOUT_SECONDS=30" >> server.conf; \
+	fi
 
 
 
@@ -96,4 +119,4 @@ deps:
 	sudo apt-get install -y apache2-utils curl valgrind gdb
 
 # Declarar targets que não são ficheiros
-.PHONY: all clean run test valgrind helgrind deps release debug
+.PHONY: all clean run test valgrind helgrind deps release debug setup www_dirs config_file

@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>503 - Service Unavailable</title>
+    <link rel="stylesheet" href="/style.css">
+    <style>
+        .error-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 60px 30px;
+            text-align: center;
+        }
+        
+        .error-code {
+            font-size: 8rem;
+            font-weight: 900;
+            background: linear-gradient(135deg, #6b7280, #4b5563);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            margin-bottom: 20px;
+            line-height: 1;
+        }
+        
+        .error-title {
+            font-size: 2.5rem;
+            color: #1f2937;
+            margin-bottom: 20px;
+        }
+        
+        .error-message {
+            color: #6b7280;
+            font-size: 1.2rem;
+            max-width: 600px;
+            margin: 0 auto 40px;
+            line-height: 1.6;
+        }
+        
+        .maintenance-banner {
+            background: linear-gradient(135deg, #fef3c7, #fbbf24);
+            padding: 25px;
+            border-radius: 12px;
+            margin: 40px auto;
+            max-width: 600px;
+            border: 2px solid #f59e0b;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .maintenance-banner::before {
+            content: '🚧';
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 3rem;
+            opacity: 0.2;
+        }
+        
+        .maintenance-banner h3 {
+            color: #92400e;
+            margin-bottom: 15px;
+            font-size: 1.4rem;
+        }
+        
+        .countdown-timer {
+            background: #1f2937;
+            color: #f9fafb;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            font-family: monospace;
+            font-size: 1.5rem;
+            letter-spacing: 2px;
+        }
+        
+        .timer-digits {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        
+        .timer-unit {
+            text-align: center;
+            min-width: 60px;
+        }
+        
+        .timer-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #fbbf24;
+        }
+        
+        .timer-label {
+            font-size: 0.8rem;
+            color: #9ca3af;
+            margin-top: 5px;
+        }
+        
+        .progress-container {
+            margin: 30px 0;
+        }
+        
+        .progress-bar {
+            height: 10px;
+            background: #e5e7eb;
+            border-radius: 5px;
+            overflow: hidden;
+            margin-bottom: 10px;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #10b981, #3b82f6);
+            width: 0%;
+            transition: width 0.5s ease;
+            border-radius: 5px;
+        }
+        
+        .progress-label {
+            display: flex;
+            justify-content: space-between;
+            color: #6b7280;
+            font-size: 0.9rem;
+        }
+        
+        .maintenance-details {
+            background: #f3f4f6;
+            padding: 25px;
+            border-radius: 12px;
+            margin: 30px 0;
+            text-align: left;
+        }
+        
+        .maintenance-details h3 {
+            color: #374151;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .details-list {
+            list-style: none;
+            padding-left: 0;
+        }
+        
+        .details-list li {
+            padding: 12px 0;
+            border-bottom: 1px solid #e5e7eb;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        
+        .details-list li:last-child {
+            border-bottom: none;
+        }
+        
+        .detail-icon {
+            color: #6b7280;
+            font-size: 1.2rem;
+            flex-shrink: 0;
+        }
+        
+        .status-updates {
+            background: #dbeafe;
+            padding: 20px;
+            border-radius: 12px;
+            margin: 30px 0;
+            border-left: 4px solid #3b82f6;
+        }
+        
+        .update-list {
+            max-height: 200px;
+            overflow-y: auto;
+            margin-top: 15px;
+        }
+        
+        .update-item {
+            padding: 10px;
+            background: white;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            border-left: 3px solid #3b82f6;
+        }
+        
+        .update-time {
+            font-size: 0.8rem;
+            color: #6b7280;
+            margin-bottom: 5px;
+        }
+        
+        .update-text {
+            color: #374151;
+            font-size: 0.9rem;
+        }
+        
+        .retry-schedule {
+            background: #f0f9ff;
+            padding: 20px;
+            border-radius: 12px;
+            margin: 30px 0;
+            text-align: left;
+        }
+        
+        .schedule-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .schedule-slot {
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            text-align: center;
+            border: 2px solid #e5e7eb;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        
+        .schedule-slot:hover {
+            border-color: #3b82f6;
+            transform: translateY(-2px);
+        }
+        
+        .schedule-slot.active {
+            border-color: #10b981;
+            background: #f0fdf4;
+        }
+        
+        .slot-time {
+            font-weight: bold;
+            color: #1f2937;
+            margin-bottom: 5px;
+        }
+        
+        .slot-status {
+            font-size: 0.8rem;
+            color: #6b7280;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-top: 30px;
+            flex-wrap: wrap;
+        }
+        
+        .btn {
+            padding: 12px 24px;
+            background: #6b7280;
+            color: white;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+        }
+        
+        .btn:hover {
+            background: #4b5563;
+            transform: translateY(-2px);
+        }
+        
+        .btn-primary {
+            background: #3b82f6;
+        }
+        
+        .btn-primary:hover {
+            background: #2563eb;
+        }
+        
+        .btn-secondary {
+            background: #10b981;
+        }
+        
+        .btn-secondary:hover {
+            background: #059669;
+        }
+        
+        .notify-form {
+            margin-top: 40px;
+            padding: 25px;
+            background: #f8fafc;
+            border-radius: 12px;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-label {
+            display: block;
+            margin-bottom: 8px;
+            color: #374151;
+            font-weight: 500;
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        
+        .form-submit {
+            width: 100%;
+            padding: 15px;
+            background: #3b82f6;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .form-submit:hover {
+            background: #2563eb;
+        }
+        
+        .server-info {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #e5e7eb;
+            color: #9ca3af;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="error-container">
+            <div class="error-code">503</div>
+            <h1 class="error-title">Service Temporarily Unavailable</h1>
+            
+            <p class="error-message">
+                The server is currently unable to handle the request due to
+                temporary overloading or maintenance of the server.
+            </p>
+            
+            <div class="maintenance-banner">
+                <h3>🚧 Scheduled Maintenance in Progress</h3>
+                <p>
+                    We're currently performing scheduled maintenance to improve
+                    server performance and reliability. Service will resume shortly.
+                </p>
+                
+                <div class="countdown-timer">
+                    <div class="timer-digits">
+                        <div class="timer-unit">
+                            <div class="timer-value" id="hours">02</div>
+                            <div class="timer-label">HOURS</div>
+                        </div>
+                        <div class="timer-unit">
+                            <div class="timer-value" id="minutes">45</div>
+                            <div class="timer-label">MINUTES</div>
+                        </div>
+                        <div class="timer-unit">
+                            <div class="timer-value" id="seconds">30</div>
+                            <div class="timer-label">SECONDS</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="progress-container">
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="maintenance-progress"></div>
+                    </div>
+                    <div class="progress-label">
+                        <span>Maintenance Started</span>
+                        <span id="progress-percent">0%</span>
+                        <span>Estimated Completion</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="maintenance-details">
+                <h3>
+                    <span class="detail-icon">📋</span>
+                    Maintenance Details
+                </h3>
+                <ul class="details-list">
+                    <li>
+                        <span class="detail-icon">⚡</span>
+                        <div>
+                            <strong>Server Optimization</strong>
+                            <p>Performance tuning and resource allocation</p>
+                        </div>
+                    </li>
+                    <li>
+                        <span class="detail-icon">🔧</span>
+                        <div>
+                            <strong>Security Updates</strong>
+                            <p>Applying latest security patches and fixes</p>
+                        </div>
+                    </li>
+                    <li>
+                        <span class="detail-icon">🔄</span>
+                        <div>
+                            <strong>Database Maintenance</strong>
+                            <p>Index optimization and cleanup operations</p>
+                        </div>
+                    </li>
+                    <li>
+                        <span class="detail-icon">📊</span>
+                        <div>
+                            <strong>Monitoring Setup</strong>
+                            <p>Enhanced monitoring and alerting systems</p>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+            
+            <div class="status-updates">
+                <h3>🔄 Live Status Updates</h3>
+                <div class="update-list" id="update-list">
+                    <!-- Updates will be added here -->
+                </div>
+            </div>
+            
+            <div class="retry-schedule">
+                <h3>🕐 Suggested Retry Times</h3>
+                <p>Try accessing the service at one of these times:</p>
+                <div class="schedule-grid" id="schedule-grid">
+                    <!-- Schedule slots will be added here -->
+                </div>
+            </div>
+            
+            <div class="notify-form">
+                <h3>📧 Get Notified When We're Back</h3>
+                <form id="notify-form" onsubmit="return submitNotification()">
+                    <div class="form-group">
+                        <label class="form-label" for="email">Email Address</label>
+                        <input type="email" id="email" class="form-input" 
+                               placeholder="you@example.com" required>
+                    </div>
+                    <button type="submit" class="form-submit">
+                        Notify Me When Service Resumes
+                    </button>
+                </form>
+            </div>
+            
+            <div class="action-buttons">
+                <button onclick="retryConnection()" class="btn btn-primary">🔄 Retry Connection</button>
+                <a href="/" class="btn">🏠 Go to Home Page</a>
+                <button onclick="checkStatus()" class="btn btn-secondary">📊 Check Status</button>
+                <button onclick="showAlternatives()" class="btn">🔀 Show Alternatives</button>
+            </div>
+            
+            <div class="server-info">
+                <p>Concurrent HTTP Server Maintenance System | Service Interruption</p>
+                <p>Authors: Inês Batista (124877) & Maria Quinteiro (124996) | Sistemas Operativos 2024/2025</p>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Configuração da contagem regressiva
+        let maintenanceEndTime = new Date();
+        maintenanceEndTime.setHours(maintenanceEndTime.getHours() + 2);
+        maintenanceEndTime.setMinutes(maintenanceEndTime.getMinutes() + 45);
+        
+        // Atualizar contagem regressiva
+        function updateCountdown() {
+            const now = new Date();
+            const diff = maintenanceEndTime - now;
+            
+            if (diff <= 0) {
+                // Manutenção concluída
+                document.getElementById('hours').textContent = '00';
+                document.getElementById('minutes').textContent = '00';
+                document.getElementById('seconds').textContent = '00';
+                document.getElementById('maintenance-progress').style.width = '100%';
+                document.getElementById('progress-percent').textContent = '100%';
+                return;
+            }
+            
+            const hours = Math.floor(diff / (1000 * 60 * 60));
+            const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+            
+            document.getElementById('hours').textContent = hours.toString().padStart(2, '0');
+            document.getElementById('minutes').textContent = minutes.toString().padStart(2, '0');
+            document.getElementById('seconds').textContent = seconds.toString().padStart(2, '0');
+            
+            // Calcular progresso (2 horas = 100%)
+            const totalDuration = 2 * 60 * 60 * 1000; // 2 horas em milissegundos
+            const elapsed = totalDuration - diff;
+            const progress = Math.min((elapsed / totalDuration) * 100, 100);
+            
+            document.getElementById('maintenance-progress').style.width = `${progress}%`;
+            document.getElementById('progress-percent').textContent = `${Math.round(progress)}%`;
+        }
+        
+        // Iniciar contagem regressiva
+        updateCountdown();
+        setInterval(updateCountdown, 1000);
+        
+        // Gerar atualizações de status
+        function generateStatusUpdates() {
+            const updates = [
+                { time: '10:30 AM', text: 'Maintenance started. Server offline for updates.' },
+                { time: '10:45 AM', text: 'Security patches applied successfully.' },
+                { time: '11:15 AM', text: 'Database optimization in progress.' },
+                { time: '11:45 AM', text: 'Performance tuning underway.' },
+                { time: '12:15 PM', text: 'Final testing phase started.' },
+                { time: '12:30 PM', text: 'Service restoration estimated in 45 minutes.' }
+            ];
+            
+            const updateList = document.getElementById('update-list');
+            updateList.innerHTML = updates.map(update => `
+                <div class="update-item">
+                    <div class="update-time">${update.time}</div>
+                    <div class="update-text">${update.text}</div>
+                </div>
+            `).join('');
+        }
+        
+        // Gerar horários de tentativa
+        function generateScheduleSlots() {
+            const now = new Date();
+            const slots = [];
+            
+            for (let i = 1; i <= 6; i++) {
+                const slotTime = new Date(now.getTime() + (i * 30 * 60 * 1000)); // A cada 30 minutos
+                const timeString = slotTime.toLocaleTimeString('en-US', { 
+                    hour: '2-digit', 
+                    minute: '2-digit',
+                    hour12: true 
+                });
+                
+                // Marcar o próximo slot como ativo
+                const isActive = i === 2; // Segundo slot está ativo
+                
+                slots.push({
+                    time: timeString,
+                    status: isActive ? 'Next available' : 'Upcoming',
+                    active: isActive
+                });
+            }
+            
+            const scheduleGrid = document.getElementById('schedule-grid');
+            scheduleGrid.innerHTML = slots.map(slot => `
+                <div class="schedule-slot ${slot.active ? 'active' : ''}">
+                    <div class="slot-time">${slot.time}</div>
+                    <div class="slot-status">${slot.status}</div>
+                </div>
+            `).join('');
+        }
+        
+        // Inicializar conteúdo dinâmico
+        window.addEventListener('load', function() {
+            generateStatusUpdates();
+            generateScheduleSlots();
+            
+            // Adicionar alguns updates em tempo real
+            setTimeout(() => {
+                addLiveUpdate('12:45 PM', 'Cache systems being refreshed.');
+            }, 30000);
+            
+            setTimeout(() => {
+                addLiveUpdate('01:00 PM', 'Load balancer configuration updated.');
+            }, 60000);
+        });
+        
+        // Adicionar atualização em tempo real
+        function addLiveUpdate(time, text) {
+            const updateList = document.getElementById('update-list');
+            const updateItem = document.createElement('div');
+            updateItem.className = 'update-item';
+            updateItem.innerHTML = `
+                <div class="update-time">${time}</div>
+                <div class="update-text">${text}</div>
+            `;
+            
+            updateList.prepend(updateItem);
+            
+            // Manter apenas as últimas 10 atualizações
+            while (updateList.children.length > 10) {
+                updateList.removeChild(updateList.lastChild);
+            }
+        }
+        
+        // Função para tentar reconexão
+        function retryConnection() {
+            const btn = document.querySelector('.btn-primary');
+            const originalText = btn.textContent;
+            
+            btn.textContent = '🔄 Testing Connection...';
+            btn.disabled = true;
+            
+            setTimeout(() => {
+                // Simular teste de conexão
+                const isBack = Math.random() > 0.7; // 30% chance de estar de volta
+                
+                if (isBack) {
+                    alert('✅ Connection successful! Service is back online.');
+                    window.location.href = '/';
+                } else {
+                    alert('Service still unavailable. Please try again in a few minutes.');
+                    btn.textContent = originalText;
+                    btn.disabled = false;
+                    
+                    // Adicionar atualização
+                    const now = new Date();
+                    const timeString = now.toLocaleTimeString('en-US', { 
+                        hour: '2-digit', 
+                        minute: '2-digit',
+                        hour12: true 
+                    });
+                    addLiveUpdate(timeString, 'User attempted connection - service still offline.');
+                }
+            }, 2000);
+        }
+        
+        // Função para verificar status
+        function checkStatus() {
+            const statuses = [
+                '🟡 Maintenance in progress - 65% complete',
+                '🟡 Database optimization phase',
+                '🟡 Performance testing underway',
+                '🟢 Final checks in progress',
+                '🔴 Service still offline'
+            ];
+            
+            const randomStatus = statuses[Math.floor(Math.random() * statuses.length)];
+            alert(`Current Status: ${randomStatus}\n\nEstimated completion: ${document.getElementById('hours').textContent}:${document.getElementById('minutes').textContent}:${document.getElementById('seconds').textContent}`);
+        }
+        
+        // Função para mostrar alternativas
+        function showAlternatives() {
+            alert('Alternative Options:\n\n' +
+                  '1. Access cached version (if available)\n' +
+                  '2. Try the mobile-optimized version\n' +
+                  '3. Contact support for urgent matters\n' +
+                  '4. Check our status page for updates\n' +
+                  '5. Follow us on social media for announcements');
+        }
+        
+        // Função para enviar notificação
+        function submitNotification() {
+            const email = document.getElementById('email').value;
+            const form = document.getElementById('notify-form');
+            
+            // Simular envio
+            form.innerHTML = `
+                <div style="text-align: center; padding: 20px;">
+                    <div style="font-size: 3rem; margin-bottom: 20px;">✅</div>
+                    <h3 style="color: #059669; margin-bottom: 10px;">Successfully Subscribed!</h3>
+                    <p>We'll notify ${email} when the service is back online.</p>
+                    <p style="font-size: 0.9rem; color: #6b7280; margin-top: 20px;">
+                        You'll receive an email confirmation shortly.
+                    </p>
+                </div>
+            `;
+            
+            // Adicionar atualização
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('en-US', { 
+                hour: '2-digit', 
+                minute: '2-digit',
+                hour12: true 
+            });
+            addLiveUpdate(timeString, `User subscribed for notification: ${email}`);
+            
+            return false; // Prevenir envio real
+        }
+        
+        // Adicionar efeito de digitação no título
+        const title = document.querySelector('.error-title');
+        const originalText = title.textContent;
+        title.textContent = '';
+        
+        let i = 0;
+        function typeWriter() {
+            if (i < originalText.length) {
+                title.textContent += originalText.charAt(i);
+                i++;
+                setTimeout(typeWriter, 50);
+            }
+        }
+        
+        // Iniciar efeito de digitação
+        setTimeout(typeWriter, 1000);
+    </script>
+</body>
+</html>
