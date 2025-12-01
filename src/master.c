@@ -14,6 +14,9 @@
 #include <sys/wait.h>       // Para waitpid
 #include <string.h>         // Para memset
 
+#include <errno.h>              // Inclui a variável global errno e a constante EINTR para verificação de erros de sistema.
+#include <sys/mman.h>           // Inclui munmap para desmapear a SHM no Worker (embora o Worker seja um TODO aqui).
+
 // Variável global para controlar o loop principal do master
 // volatile: garante que o compilador não optimiza o acesso a esta variável
 // sig_atomic_t: tipo que garante acesso atómico em handlers de sinal
@@ -21,8 +24,23 @@ volatile sig_atomic_t keep_running = 1;
 
 // Array para guardar os PIDs dos processos worker
 // Permite ao master controlar e terminar os workers graciosamente
-static pid_t worker_pids[100];  // Assume máximo de 100 workers
-static int num_workers = 0;
+#define MAX_WORKERS 100                 // Define o número máximo de Workers que este array pode armazenar.
+static pid_t worker_pids[MAX_WORKERS];  // Array estático para registar os PIDs dos filhos Worker.
+static int num_workers_global = 0;
+
+
+// Define a resposta HTTP 503 Service Unavailable (Serviço Indisponível).
+static const char* HTTP_503_MESSAGE =
+    "HTTP/1.1 503 Service Unavailable\r\n"   // Define o status code 503.
+    "Content-Type: text/plain\r\n"          // Define o tipo de conteúdo como texto simples.
+    "Connection: close\r\n"                 // Indica ao cliente para fechar a conexão após esta resposta.
+    "Retry-After: 60\r\n"                   // Sugere ao cliente que tente novamente após 60 segundos.
+    "Content-Length: 35\r\n"                // Tamanho do corpo da mensagem em bytes.
+    "\r\n"                                  // Linha vazia que separa os cabeçalhos do corpo.
+    "503: Server Queue is currently full."; // O corpo da mensagem (35 bytes).
+
+
+
 
 // Handler para sinais (Ctrl+C)
 // Permite parar o servidor graciosamente
@@ -33,115 +51,85 @@ void signal_handler(int signum) {
 
 // Função para criar o socket do servidor (do template do professor)
 int create_server_socket(int port) {
-    // Criar socket TCP
-    // AF_INET = IPv4, SOCK_STREAM = TCP, 0 = protocolo padrão
-    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
+    int sockfd = socket(AF_INET, SOCK_STREAM, 0); // Cria um novo socket para TCP/IPv4.
     if (sockfd < 0) {
-        perror("socket failed");
-        return -1;
+        perror("socket failed");    // Reporta erro na criação do socket.
+        return -1;                  // Retorna falha.
     }
     
-    // Configurar opção para reutilizar o porto imediatamente
-    // SO_REUSEADDR evita "Address already in use" ao reiniciar o servidor
-    int opt = 1;
-    setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
+    int opt = 1; // Valor para a opção SO_REUSEADDR.
+    setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)); // Permite a reutilização imediata do endereço/porta após o fecho.
     
-    // Configurar endereço do servidor
-    struct sockaddr_in addr;
-    addr.sin_family = AF_INET;           // Família IPv4
-    addr.sin_addr.s_addr = INADDR_ANY;   // Aceitar ligações de qualquer interface
-    addr.sin_port = htons(port);         // Porto (convertido para network byte order)
+    struct sockaddr_in addr; // Estrutura para o endereço de rede do servidor.
+    memset(&addr, 0, sizeof(addr)); // Inicializa a estrutura do endereço a zero.
+    addr.sin_family = AF_INET;           // Define a família de endereços para IPv4.
+    addr.sin_addr.s_addr = INADDR_ANY;   // Aceita conexões em todas as interfaces de rede disponíveis.
+    addr.sin_port = htons(port);         // Define a porta, convertendo para network byte order.
     
-    // Associar o socket ao endereço e porto
-    if (bind(sockfd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
-        perror("bind failed");
-        close(sockfd);
-        return -1;
+    if (bind(sockfd, (struct sockaddr*)&addr, sizeof(addr)) < 0) { // Associa o socket ao endereço e porta definidos.
+        perror("bind failed");          // Reporta erro de associação.
+        close(sockfd);                  // Fecha o socket em caso de erro.
+        return -1;                      // Retorna falha.
     }
     
-    // Colocar o socket em modo escuta
-    // 128 = tamanho da fila de ligações pendentes (backlog)
-    if (listen(sockfd, 128) < 0) {
-        perror("listen failed");
-        close(sockfd);
-        return -1;
+    if (listen(sockfd, 128) < 0) { // Coloca o socket em modo de escuta, definindo o backlog (fila de espera) para 128.
+        perror("listen failed");        // Reporta erro de escuta.
+        close(sockfd);                  // Fecha o socket em caso de erro.
+        return -1;                      // Retorna falha.
     }
     
-    return sockfd;  // Retorna o socket criado com sucesso
+    return sockfd; // Retorna o descritor do socket em escuta.
 }
 
-// Função para colocar uma ligação na fila partilhada (do template do professor)
-// Implementa o padrão produtor-consumidor com semáforos
-void enqueue_connection(shared_data_t* data, semaphores_t* sems, int client_fd) {
-    // PASSO 1: Esperar por um slot vazio na fila
-    // sem_wait decrementa empty_slots - bloqueia se não houver slots vazios
-    // Isto garante que não excedemos o tamanho máximo da fila
-    sem_wait(sems->empty_slots);
-    
-    // PASSO 2: Obter acesso exclusivo à fila
-    // sem_wait no mutex garante que só um processo acede à fila de cada vez
-    sem_wait(sems->queue_mutex);
-    
-    // PASSO 3: SECÇÃO CRÍTICA - Adicionar ligação à fila
-    // Adicionar o socket do cliente na próxima posição disponível
-    data->queue.sockets[data->queue.rear] = client_fd;
-    
-    // Atualizar o índice rear (fim da fila) usando aritmética modular
-    // % MAX_QUEUE_SIZE garante que a fila é circular
-    data->queue.rear = (data->queue.rear + 1) % MAX_QUEUE_SIZE;
-    
-    // Incrementar o contador de elementos na fila
-    data->queue.count++;
-    
-    // PASSO 4: Libertar o mutex da fila
-    sem_post(sems->queue_mutex);
-    
-    // PASSO 5: Sinalizar que há um novo elemento na fila
-    // sem_post incrementa filled_slots - acorda workers à espera de trabalho
-    sem_post(sems->filled_slots);
-}
+
 
 // Função para criar processos worker usando fork()
 // config: configurações do servidor
 // shared_data: memória partilhada com a fila
 // sems: semáforos para sincronização
 // Retorna: número de workers criados com sucesso
-int create_worker_processes(server_config_t* config, shared_data_t* shared_data, semaphores_t* sems) {
-    printf("Creating %d worker processes...\n", config->num_workers);
+int create_worker_processes(server_config_t* config) {
+    if (config->num_workers > MAX_WORKERS) { // Verifica se o número configurado excede o tamanho do array de PIDs.
+        fprintf(stderr, "Aviso: Número de workers (%d) excede o máximo suportado (%d).\n", // Emite um aviso.
+                config->num_workers, MAX_WORKERS);
+        config->num_workers = MAX_WORKERS; // Limita o número de workers ao máximo.
+    }
+
+    printf("Creating %d worker processes...\n", config->num_workers); // Informa o número de workers a serem criados.
     
-    int workers_created = 0;
+    num_workers_global = 0; // Reinicia o contador de workers.
     
     for (int i = 0; i < config->num_workers; i++) {
-        // fork() cria um novo processo (cópia do processo atual)
-        pid_t pid = fork();
+        pid_t pid = fork(); // Cria um novo processo (cópia do Master).
         
         if (pid == -1) {
-            // Erro no fork()
-            perror("fork failed");
-            continue;  // Tenta criar os workers restantes
+            perror("fork failed"); // Reporta erro se o fork falhar.
+            break; // Sai do loop para tentar terminar o que foi criado.
         }
         else if (pid == 0) {
-            // CÓDIGO EXECUTADO APENAS NO PROCESSO WORKER (filho)
-            printf("Worker %d (PID: %d) created\n", i, getpid());
+            // CÓDIGO DO PROCESSO WORKER (filho)
+            printf("Worker %d (PID: %d) started\n", i, getpid()); // O Worker imprime o seu ID e PID.
             
-            // TODO: Implementar worker_main quando worker.c estiver pronto
-            // Por agora, workers apenas imprimem uma mensagem e terminam
-            printf("Worker %d simulating work...\n", i);
-            sleep(10);  // Simula trabalho por 10 segundos
-            printf("Worker %d finished\n", i);
-            exit(0);  // Worker termina
+            // TODO: Chamar worker_main(config) aqui, quando worker.c estiver pronto.
+            while(1) { // Loop infinito temporário para simular o worker à espera de conexões.
+                sleep(60); // Simula que está à espera de trabalho ou a processar.
+            } 
+            
+            // O worker deve desanexar (detach) da SHM antes de sair.
+            if (g_shared_data != NULL) {
+                munmap(g_shared_data, sizeof(shared_data_t)); // Desmapeia a SHM do espaço de endereçamento do Worker.
+            }
+            exit(0); // O processo Worker termina.
         }
         else {
-            // CÓDIGO EXECUTADO APENAS NO PROCESSO MASTER (pai)
-            // Guardar o PID do worker para podermos controlá-lo depois
-            worker_pids[workers_created] = pid;
-            workers_created++;
-            
-            printf("Worker %d created with PID: %d\n", i, pid);
+            // CÓDIGO DO PROCESSO MASTER (pai)
+            worker_pids[num_workers_global] = pid; // O Master guarda o PID do Worker para futura gestão.
+            num_workers_global++; // Incrementa o contador de Workers criados.
+            printf("Worker %d created with PID: %d\n", i, pid); // O Master informa o PID do novo Worker.
         }
     }
     
-    return workers_created;
+    return num_workers_global; // Retorna o número total de Workers criados com sucesso.
 }
 
 // Função para terminar todos os processos worker graciosamente
@@ -149,7 +137,7 @@ int create_worker_processes(server_config_t* config, shared_data_t* shared_data,
 void terminate_worker_processes() {
     printf("Terminating worker processes...\n");
     
-    for (int i = 0; i < num_workers; i++) {
+    for (int i = 0; i < num_workers_global; i++) {
         if (worker_pids[i] > 0) {
             printf("   - Sending SIGTERM to worker PID: %d\n", worker_pids[i]);
             
@@ -167,100 +155,148 @@ void terminate_worker_processes() {
     }
 }
 
+
+// Envia uma resposta HTTP 503 ao cliente e fecha o descritor.
+void send_503_response(int client_fd) {
+    // Envia a resposta HTTP 503 Service Unavailable
+    send(client_fd, HTTP_503_MESSAGE, strlen(HTTP_503_MESSAGE), 0); // Usa send para garantir que todos os bytes são escritos se possível.
+    
+    // Incrementa a contagem de erros 500 para fins estatísticos (embora 503 seja mais específico).
+    // Nota: Muitos sistemas contam 503 como 5xx, mas para precisão, deveria ter um campo 503.
+    if (g_shared_data) { // Verifica se a memória partilhada está acessível.
+        sem_wait(&g_shared_data->mutex); // Bloqueia o mutex para atualizar as estatísticas de forma segura.
+        g_shared_data->stats.status_500++; // Incrementa o contador de erros 5xx (Usamos o 500 como fallback para 5xx genérico).
+        sem_post(&g_shared_data->mutex); // Liberta o mutex.
+    }
+    
+    close(client_fd); // Fecha a conexão do cliente.
+    printf("NOTICE: Queue full. Sent HTTP 503 to client (socket %d).\n", client_fd); // Mensagem de log para o console.
+}
+
 // Função principal do processo master
 // Configura o servidor, cria workers e gere ligações
 int master_main(server_config_t* config) {
-    printf("MASTER PROCESS (PID: %d) - Starting...\n", getpid());
+    printf("MASTER PROCESS (PID: %d) - Starting...\n", getpid()); // O Master imprime o seu próprio PID.
     
-    // 1. CONFIGURAR HANDLERS DE SINAL (versão simplificada)
-    // Usar signal() em vez de sigaction para simplificar
-    signal(SIGINT, signal_handler);   // Ctrl+C
-    signal(SIGTERM, signal_handler);  // Sinal de terminação
+    // 1. CONFIGURAR HANDLERS DE SINAL
+    signal(SIGINT, signal_handler);   // Associa a função signal_handler ao sinal SIGINT (Ctrl+C).
+    signal(SIGTERM, signal_handler);  // Associa a função signal_handler ao sinal SIGTERM (sinal de terminação).
     
     // 2. CRIAR MEMÓRIA PARTILHADA E SEMÁFOROS
-    printf("Initializing shared resources...\n");
+    printf("Initializing shared resources...\n"); // Inicia a configuração de recursos partilhados.
     
-    shared_data_t* shared_data = create_shared_memory();
+    // Cria a SHM e inicializa os semáforos DENTRO da SHM.
+    shared_data_t* shared_data = create_shared_memory(); // Chama a função que cria, mapeia e inicializa a SHM.
     if (!shared_data) {
-        printf("ERROR: Could not create shared memory\n");
-        return -1;
+        printf("ERROR: Could not create shared memory\n"); // Trata o erro de criação de SHM.
+        return -1; // Termina com erro.
     }
-    printf("Shared memory created\n");
-    
-    semaphores_t sems;
-    if (init_semaphores(&sems, config->max_queue_size) != 0) {
-        printf("ERROR: Could not create semaphores\n");
-        destroy_shared_memory(shared_data);
-        return -1;
-    }
-    printf("Semaphores initialized\n");
+    printf("Shared memory created and semaphores initialized\n"); // Confirma a criação.
     
     // 3. CRIAR SOCKET DO SERVIDOR
-    int server_fd = create_server_socket(config->port);
+    int server_fd = create_server_socket(config->port); // Cria o socket que escuta as conexões na porta configurada.
     if (server_fd < 0) {
-        printf("ERROR: Could not create server socket\n");
-        destroy_semaphores(&sems);
-        destroy_shared_memory(shared_data);
-        return -1;
+        printf("ERROR: Could not create server socket\n"); // Trata o erro de criação do socket.
+        destroy_shared_memory(shared_data); // Limpa a SHM antes de terminar.
+        return -1; // Termina com erro.
     }
-    printf("Server socket created on port %d\n", config->port);
+    printf("Server socket created on port %d\n", config->port); // Confirma o sucesso.
     
     // 4. CRIAR PROCESSOS WORKER
-    num_workers = create_worker_processes(config, shared_data, &sems);
-    if (num_workers == 0) {
-        printf("ERROR: Could not create any workers\n");
-        close(server_fd);
-        destroy_semaphores(&sems);
-        destroy_shared_memory(shared_data);
-        return -1;
+    int created_workers = create_worker_processes(config); // Executa o fork para criar os Workers.
+    if (created_workers == 0) {
+        printf("ERROR: Could not create any workers\n"); // Trata o erro se nenhum Worker for criado.
+        close(server_fd); // Fecha o socket de escuta.
+        destroy_shared_memory(shared_data); // Limpa a SHM.
+        return -1; // Termina com erro.
     }
-    printf("%d worker processes created successfully\n", num_workers);
+    printf("%d worker processes created successfully\n", created_workers); // Confirma o número de Workers.
     
     // 5. LOOP PRINCIPAL DO MASTER - ACEITAR LIGAÇÕES
-    printf("\nMaster ready to accept connections...\n");
-    printf("Server running at: http://localhost:%d\n", config->port);
-    printf("Press Ctrl+C to stop the server\n\n");
+    printf("\nMaster ready to accept connections...\n"); // O Master está pronto para o ciclo de aceitação.
+    printf("Server running at: http://localhost:%d\n", config->port); // Informa o endereço do servidor.
+    printf("Press Ctrl+C to stop the server\n\n"); // Instruções para o utilizador.
     
-    int connection_count = 0;
+    int connection_count = 0; // Contador de conexões aceites desde o início.
     
-    while (keep_running) {
+    while (keep_running) { // O loop continua até que a flag seja alterada pelo signal_handler.
+        struct sockaddr_in client_addr; // Estrutura para armazenar o endereço do cliente.
+        socklen_t client_len = sizeof(client_addr); // Variável para o tamanho da estrutura do endereço.
+        
         // Aceitar uma nova ligação de cliente
-        // accept() bloqueia até que um cliente se ligue
-        int client_fd = accept(server_fd, NULL, NULL);
+        int client_fd = accept(server_fd, (struct sockaddr*)&client_addr, &client_len); // Bloqueia e espera por uma nova conexão.
         
         if (client_fd < 0) {
-            // Se accept falhar (mas não for porque estamos a parar), mostra erro
+            // Se accept for interrompido por um sinal (como SIGINT), ignoramos e verificamos 'keep_running'.
+            if (errno == EINTR) continue; // Continua para reavaliar 'keep_running' se for interrompido por sinal.
+            
             if (keep_running) {
-                perror("accept failed");
+                perror("accept failed"); // Reporta erro se não for uma terminação.
             }
-            continue;  // Continua para a próxima iteração
+            continue; // Continua o loop.
         }
         
-        connection_count++;
+        connection_count++; // Incrementa o contador de conexões aceites.
         
-        // Colocar a ligação na fila partilhada para os workers processarem
-        // enqueue_connection usa semáforos para sincronização thread-safe
-        enqueue_connection(shared_data, &sems, client_fd);
+
+
+
+        // LÓGICA DE ENFILEIRAMENTO NÃO-BLOQUEANTE (PRODUCER)
+        // Protocolo: empty_slots (try_wait) -> mutex (wait) -> filled_slots (post)
+
         
-        // Mostrar estatísticas (para debug)
-        printf("Connection %d accepted (socket %d) - In queue: %d/%d\n", 
-               connection_count, client_fd, shared_data->queue.count, config->max_queue_size);
+        // 1. Tentar obter um slot vazio (Não bloquear se a fila estiver cheia).
+        // sem_trywait retorna -1 e define errno como EAGAIN se o semáforo for 0.
+        if (sem_trywait(&shared_data->empty_slots) == -1) { 
+            if (errno == EAGAIN) { // Se a fila estiver cheia (semáforo empty_slots = 0).
+                send_503_response(client_fd); // Envia resposta 503 e fecha o socket.
+                continue; // Continua para aceitar a próxima conexão.
+            }
+            // Outros erros de sem_trywait (menos provável, mas tratado).
+            perror("sem_trywait empty_slots failed unexpectedly"); 
+            close(client_fd);
+            continue;
+        }
+
+        // 2. Obter acesso exclusivo à fila (Secção Crítica).
+        // Nota: O Master bloqueia aqui se um Worker ou outro Master estiver na secção crítica.
+        if (sem_wait(&shared_data->mutex) == -1) { 
+            perror("sem_wait mutex failed"); // Reporta erro.
+            sem_post(&shared_data->empty_slots); // Reverte o decremento do empty_slots.
+            close(client_fd); // Fecha a conexão em caso de erro irrecuperável.
+            continue; 
+        }
+
+        // 3. SECÇÃO CRÍTICA - Adicionar ligação à fila.
+        shared_data->queue.sockets[shared_data->queue.rear] = client_fd; // Insere o FD do cliente.
+        shared_data->queue.rear = (shared_data->queue.rear + 1) % MAX_QUEUE_SIZE; // Atualiza o índice 'rear' circularmente.
+        shared_data->queue.count++; // Incrementa o contador de elementos na fila.
+        
+        // 4. Libertar o mutex da fila.
+        sem_post(&shared_data->mutex); // Liberta o mutex, permitindo que outro processo aceda.
+        
+        // 5. Sinalizar que há um novo elemento na fila.
+        sem_post(&shared_data->full_slots); // Incrementa o full_slots (acorda um Worker).
+        
+        // Log de sucesso
+        printf("Connection %d accepted (socket %d) - Queued: %d/%d\n", 
+               connection_count, client_fd, shared_data->queue.count, MAX_QUEUE_SIZE);
+        
     }
     
-    // 6. LIMPEZA FINAL - executado quando o servidor para
-    printf("\nMASTER PROCESS - Performing cleanup...\n");
+    // 6. LIMPEZA FINAL - executado quando o servidor para (graceful shutdown)
+    printf("\nMASTER PROCESS - Performing cleanup...\n"); // Inicia a fase de terminação graciosa.
     
-    // Fechar socket do servidor - não aceita mais ligações
-    close(server_fd);
-    printf("Server socket closed\n");
+    // Fechar socket do servidor
+    close(server_fd); // Fecha o socket de escuta, impedindo novas conexões.
+    printf("Server socket closed\n"); // Confirma o fecho.
     
     // Terminar workers graciosamente
-    terminate_worker_processes();
+    terminate_worker_processes(); // Envia SIGTERM a todos os Workers e espera que terminem.
     
     // Destruir semáforos e memória partilhada
-    destroy_semaphores(&sems);
-    destroy_shared_memory(shared_data);
+    destroy_shared_memory(shared_data); // Limpa e remove o segmento de memória partilhada.
     
-    printf("Master terminated gracefully\n");
-    return 0;
+    printf("Master terminated gracefully\n"); // Confirma a terminação bem-sucedida.
+    return 0; // O programa termina com sucesso.
 }

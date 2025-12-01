@@ -10,19 +10,18 @@
 #include "semaphores.h"     // Para semaphores_t
 
 // Função para criar o socket do servidor
-// port: número do porto onde o servidor vai escutar
-// Retorna: descritor do socket ou -1 em caso de erro
 int create_server_socket(int port);
 
-// Função para colocar uma ligação na fila partilhada
-// data: ponteiro para a memória partilhada com a fila
-// sems: semáforos para sincronização
-// client_fd: descritor do socket do cliente a colocar na fila
-void enqueue_connection(shared_data_t* data, semaphores_t* sems, int client_fd);
+// Função para criar processos worker usando fork()
+int create_worker_processes(server_config_t* config);
+
+// Função para terminar todos os processos worker graciosamente
+void terminate_worker_processes(void);
+
+// Handler para sinais (SIGINT, SIGTERM)
+void signal_handler(int signum);
 
 // Função principal do processo master
-// config: configurações do servidor
-// Retorna: 0 em sucesso, -1 em erro
 int master_main(server_config_t* config);
 
 #endif

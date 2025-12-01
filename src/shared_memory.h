@@ -43,6 +43,10 @@ typedef struct {
 } shared_data_t;
 
 
+// Variável global que será o ponteiro para o início da SHM.
+extern shared_data_t *g_shared_data; // Usado por Master e Workers para aceder aos dados partilhados.
+
+
 // Função para criar a memória partilhada
 // Retorna um ponteiro para os dados partilhados ou NULL se erro
 shared_data_t* create_shared_memory();
@@ -51,5 +55,12 @@ shared_data_t* create_shared_memory();
 // Função para limpar a memória partilhada no final
 // Deve ser chamada quando o servidor termina
 void destroy_shared_memory(shared_data_t* data);
+
+
+// Adiciona um descritor de ficheiro à fila de forma segura (Produtor: Master).
+int enqueue_connection(int client_fd); // Usa os semáforos 'mutex', 'empty_slots' e 'full_slots' para sincronizar.
+
+// Retira um descritor de ficheiro da fila de forma segura (Consumidor: Worker).
+int dequeue_connection(void); // Usa os semáforos 'mutex', 'full_slots' e 'empty_slots' para sincronizar.
 
 #endif
