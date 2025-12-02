@@ -11,13 +11,7 @@
 #define MAX_QUEUE_SIZE 100 // Tamanho máximo da fila de conexões.
 #define SHM_NAME "/server_shm_queue" // Nome do segmento de memória partilhada (usado no .c).
 
-// Estrutura para estatísticas do servidor (simples).
-typedef struct {
-    int total_requests; // Total de pedidos processados (200, 4xx, 5xx).
-    int status_200;     // Contagem de respostas 200 OK.
-    int status_404;     // Contagem de respostas 404 Not Found.
-    int status_500;     // Contagem de respostas 5xx (inclui 503 do Master).
-} server_stats_t;
+
 
 // Estrutura para a fila circular de descritores de sockets.
 typedef struct {

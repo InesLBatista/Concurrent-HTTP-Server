@@ -3,9 +3,12 @@
 // Inês Batista, 124877
 // Maria Quinteiro, 124996
 
-#include "shared_memory.h"   // <--- GARANTE SHM_NAME, shared_data_t, e semáforos
-#include "worker.h"          // Protótipos das funções Worker (requeridos se existir worker.h)
-#include "config.h"          // Estruturas de configuração (requeridos se existir config.h)
+#include "shared_memory.h"   // Acesso à SHM, semáforos e shared_data_t
+#include "worker.h"          // Protótipos das funções Worker
+#include "config.h"          // Estruturas de configuração
+#include "stats.h"           // função update_stats
+#include "logger.h"          // função log_request
+#include "http.h"            // estrutura http_request_t
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -38,26 +41,37 @@ void worker_signal_handler(int signum) {
 
 // simula o processamento de um pedido (ENVIA UM 200 OK SIMPLES)
 void process_request(int client_fd) {
-    // para já, apenas enviar a resposta de sucesso e atualizar estatísticas
+    size_t bytes_sent = strlen(HTTP_200_RESPONSE);
+    int status_code = 200;
     
+    // NOTE: Em código real, faríamos a leitura do socket aqui.
+    // Vamos simular uma estrutura de pedido para o log.
+    http_request_t mock_req = {0};
+    strcpy(mock_req.method, "GET");
+    strcpy(mock_req.path, "/test");
+    strcpy(mock_req.version, "HTTP/1.1");
+    // NOTE: O IP remoto seria obtido durante o accept no Master,
+    // mas não temos essa informação no Worker só com o client_fd.
+    const char *mock_ip = "127.0.0.1"; 
 
-    // 1.Enviar resposta 200 OK
-    send(client_fd, HTTP_200_RESPONSE, strlen(HTTP_200_RESPONSE), 0);
 
-    // 2. Atualizar estatísticas com o sucesso
-    // thread-safe com mutex !!
+    // 1. Enviar resposta 200 OK
+    send(client_fd, HTTP_200_RESPONSE, bytes_sent, 0);
+
+    // 2. Atualizar estatísticas (USANDO A FUNÇÃO CENTRALIZADA)
     if (g_shared_data) {
-        // Obter acesso exclusivo às estatísticas e fila.
-        sem_wait(&g_shared_data->mutex);
-        g_shared_data->stats.total_requests++;
-        g_shared_data->stats.status_200++;
-        sem_post(&g_shared_data->mutex);
+        // Agora usamos a função que faz o sem_wait/post internamente e lida com toda a lógica.
+        update_stats(&g_shared_data->stats, status_code, bytes_sent, &g_shared_data->mutex);
+        
+        // 3. REGISTAR O PEDIDO (LOG)
+        // Usamos o mutex da SHM para proteger a escrita do log,
+        // garantindo que não há race conditions no ficheiro de log.
+        log_request(mock_ip, &mock_req, status_code, bytes_sent, &g_shared_data->mutex);
     }
-
-    // 3. fechar conexão
+    
+    // 4. fechar conexão
     close(client_fd);
-    printf("[Worker %d] Processed request (socket %d). Total 200s: %d\n", 
-            getpid(), client_fd, g_shared_data ? g_shared_data->stats.status_200 : 0);
+    printf("[Worker %d] Processed request (socket %d). Status: %d\n", getpid(), client_fd, status_code);
 }
 
 

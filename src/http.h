@@ -53,4 +53,4 @@ void send_503_response(int client_fd, const char* document_root);
 // Retorna ponteiro para o conteúdo ou NULL em caso de erro
 char* read_error_file(const char* document_root, const char* error_file);
 
-#endif
+#endif 

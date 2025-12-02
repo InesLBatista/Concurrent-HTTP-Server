@@ -4,6 +4,13 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
+
+// constantes de compilação usadas pelo master.c e por shared_memory.h
+#define SERVER_PORT 8080    // Porto padrão (pode ser substituído por load_config)
+#define NUM_WORKERS 4       // Número padrão de Workers (compilação)
+#define MAX_QUEUE_SIZE 100  // Tamanho máximo da fila de conexões
+
+
 // Esta estrutura guarda todas as configurações do servidor
 // São os valores que mudam consoante o ficheiro server.conf
 typedef struct {

@@ -105,41 +105,16 @@ void destroy_shared_memory(shared_data_t* data) {
 
 
 
-// Adiciona um descritor de ficheiro à fila de forma segura (Produtor: Master).
-// Esta função é a versão BLOQUEANTE.
-// NOTA: A sua implementação real do Master deverá usar sem_trywait() em vez de sem_wait()
-// para conseguir responder com 503 se a fila estiver cheia.
+// O Master usará sem_trywait no master.c para lidar com o 503, mas o worker.c precisa de uma versão bloqueante.
 int enqueue_connection(int client_fd) {
     if (g_shared_data == NULL) return -1;
     
-    // 1. Esperar por um slot vazio (trata interrupções EINTR).
-    while (sem_wait(&g_shared_data->empty_slots) == -1) {
-        if (errno != EINTR) {
-            perror("sem_wait empty_slots failed");
-            return -1;
-        }
-    }
-    
-    // 2. Obter acesso exclusivo à fila.
-    if (sem_wait(&g_shared_data->mutex) == -1) {
-        perror("sem_wait mutex failed");
-        sem_post(&g_shared_data->empty_slots); // Reverte a operação.
-        return -1;
-    }
-    
-    // 3. SECÇÃO CRÍTICA - Adicionar ligação à fila.
-    g_shared_data->queue.sockets[g_shared_data->queue.rear] = client_fd;
-    g_shared_data->queue.rear = (g_shared_data->queue.rear + 1) % MAX_QUEUE_SIZE;
-    g_shared_data->queue.count++;
-    
-    // 4. Libertar o mutex.
-    sem_post(&g_shared_data->mutex);
-    
-    // 5. Sinalizar que há um novo elemento na fila (acorda um Worker).
-    sem_post(&g_shared_data->full_slots);
+    // Não precisamos de sem_wait aqui, pois o Master implementará a lógica de 503 com o uso de sem_trywait diretamente no master.c. 
+    // Esta função é apenas um placeholder para um enqueue simples, mas não será chamada diretamente pelo Master.
 
-    return 0;
+    return -1; // Retorna -1 para indicar que esta função não deve ser usada diretamente pelo Master.
 }
+
 
 
 // Retira um descritor de ficheiro da fila de forma segura (Consumidor: Worker).
@@ -147,12 +122,15 @@ int dequeue_connection(void) {
     int client_fd = -1;
     if (g_shared_data == NULL) return -1;
 
-    // 1. Esperar por um slot preenchido (trata interrupções EINTR).
+    // 1. Esperar por um slot preenchido (Bloqueia Worker se fila vazia).
+    // O loop trata de interrupções (como SIGTERM) para permitir o shutdown gracioso.
     while (sem_wait(&g_shared_data->full_slots) == -1) {
         if (errno != EINTR) {
             perror("sem_wait full_slots failed");
             return -1;
         }
+        // Se EINTR (interrupção de sinal), tenta novamente ou o worker_main trata.
+        return -1; 
     }
     
     // 2. Obter acesso exclusivo à fila.
@@ -164,12 +142,10 @@ int dequeue_connection(void) {
     
     // 3. SECÇÃO CRÍTICA - Retirar ligação da fila.
     if (g_shared_data->queue.count > 0) { 
-        client_fd = g_shared_data->queue.sockets[g_shared_data->queue.head]; // *** USA O 'head' ***
-        g_shared_data->queue.head = (g_shared_data->queue.head + 1) % MAX_QUEUE_SIZE; // *** USA O 'head' ***
+        client_fd = g_shared_data->queue.sockets[g_shared_data->queue.head]; 
+        g_shared_data->queue.head = (g_shared_data->queue.head + 1) % MAX_QUEUE_SIZE; 
         g_shared_data->queue.count--;
-    } else {
-        fprintf(stderr, "ERRO LÓGICO: Full slots ok, mas fila vazia!\n");
-    }
+    } 
     
     // 4. Libertar o mutex.
     sem_post(&g_shared_data->mutex);
