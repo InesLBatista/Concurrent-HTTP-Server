@@ -1,76 +1,54 @@
-// Inês Batista, 124877
-// Maria Quinteiro, 124996
-
 #ifndef CACHE_H
 #define CACHE_H
 
-#include <pthread.h> // Necessário para pthread_rwlock_t
-#include <stddef.h>  // Para size_t
+#include <pthread.h>
+#include <stddef.h>
+#include <time.h>
 
-// Tamanho máximo da cache (número de ficheiros que pode guardar)
-#define MAX_CACHE_ENTRIES 128
-// Tamanho máximo do nome do ficheiro (path)
-#define MAX_PATH_LEN 256
-// Tamanho máximo do conteúdo de um ficheiro (em bytes)
-#define MAX_FILE_SIZE (1024 * 1024) // 1MB por ficheiro de exemplo
+#define CACHE_MAX_ENTRIES 1000
+#define CACHE_MAX_FILE_SIZE (1024 * 1024) // 1MB
+#define HASH_TABLE_SIZE 1024
 
-
-
-
-// Estrutura para uma única entrada de ficheiro na cache
-typedef struct {
-    char path[MAX_PATH_LEN];      // O caminho do ficheiro (chave)
-    char *content;                // O conteúdo do ficheiro (alocado dinamicamente)
-    size_t size;                  // O tamanho do conteúdo em bytes
-    time_t last_modified;         // Tempo da última modificação do ficheiro original (para futura validação)
-    int is_valid;                 // Flag: 1 se a entrada for válida, 0 se estiver vazia
+typedef struct cache_entry_t {
+    char *key;                    // File path
+    void *data;                   // File content
+    size_t size;                  // Size in bytes
+    time_t timestamp;             // Last access time
+    struct cache_entry_t *prev;   // LRU doubly-linked list
+    struct cache_entry_t *next;   // LRU doubly-linked list
+    struct cache_entry_t *next_hash; // Hash collision chain
+    int ref_count;                // Reference count for thread safety
 } cache_entry_t;
 
-// Estrutura principal da Cache
 typedef struct {
-    cache_entry_t entries[MAX_CACHE_ENTRIES]; // O array de entradas da cache
-    size_t total_size;                        // Tamanho total ocupado na cache (opcional, para gestão)
-    
-    // Reader-Writer Lock: Permite concorrência de leitores (NOVIDADE DIA 11)
-    pthread_rwlock_t rwlock;                  // O lock principal para proteger a estrutura
-} file_cache_t;
+    cache_entry_t *head;          // Most recently used
+    cache_entry_t *tail;          // Least recently used
+    cache_entry_t **hash_table;   // Hash table for O(1) lookup
+    size_t max_size;              // Maximum cache size in bytes
+    size_t current_size;          // Current cache size in bytes
+    int max_entries;              // Maximum number of entries
+    int current_entries;          // Current number of entries
+    pthread_mutex_t lock;         // Mutex for thread safety
+    pthread_mutex_t eviction_lock;// Lock for eviction
+} cache_t;
 
+// Cache operations
+cache_t *cache_create(size_t max_size_mb, int max_entries);
+void cache_destroy(cache_t *cache);
 
+cache_entry_t *cache_get(cache_t *cache, const char *key);
+int cache_put(cache_t *cache, const char *key, const void *data, size_t size);
+int cache_remove(cache_t *cache, const char *key);
+void cache_invalidate(cache_t *cache);
 
+// Statistics
+void cache_print_stats(const cache_t *cache);
+size_t cache_get_hit_count(void);
+size_t cache_get_miss_count(void);
+double cache_get_hit_ratio(void);
 
-/**
- * Inicializa a Cache de Ficheiros.
- * Deve ser chamada uma vez pelo Worker Main.
- * @param cache: Ponteiro para a estrutura da cache a inicializar.
- * @return 0 em caso de sucesso, -1 em caso de falha.
- */
-int cache_init(file_cache_t *cache);
+// Helper functions
+unsigned int cache_hash(const char *key);
+void cache_entry_release(cache_entry_t *entry);
 
-/**
- * Tenta obter um ficheiro da cache (Leitor).
- * Requer um Read Lock (rdlock).
- * @param cache: Ponteiro para a cache.
- * @param path: O caminho do ficheiro a procurar.
- * @param size: Ponteiro para onde guardar o tamanho do ficheiro (saída).
- * @return Ponteiro para o conteúdo do ficheiro na cache, ou NULL se não for encontrado.
- */
-const char* cache_get(file_cache_t *cache, const char *path, size_t *size);
-
-/**
- * Adiciona ou atualiza um ficheiro na cache (Escritor).
- * Requer um Write Lock (wrlock).
- * @param cache: Ponteiro para a cache.
- * @param path: O caminho do ficheiro.
- * @param content: O conteúdo a guardar (será copiado).
- * @param size: O tamanho do conteúdo.
- * @return 0 em caso de sucesso, -1 em caso de falha (ex: sem espaço).
- */
-int cache_put(file_cache_t *cache, const char *path, const char *content, size_t size);
-
-/**
- * Limpa todos os recursos da cache.
- * @param cache: Ponteiro para a cache.
- */
-void cache_destroy(file_cache_t *cache);
-
-#endif
+#endif // CACHE_H
