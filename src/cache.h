@@ -1,13 +1,19 @@
 #ifndef CACHE_H
 #define CACHE_H
 
-#include <pthread.h>
+#include <pthread.h>  /* ADICIONAR: Para pthread_rwlock_t */
 #include <stddef.h>
 #include <time.h>
 
 #define CACHE_MAX_ENTRIES 1000
 #define CACHE_MAX_FILE_SIZE (1024 * 1024) // 1MB
 #define HASH_TABLE_SIZE 1024
+
+/* Se pthread_rwlock_t ainda der erro, podemos fazer um fallback */
+#ifndef PTHREAD_RWLOCK_INITIALIZER
+/* Fallback para sistemas sem suporte a reader-writer locks */
+#define USE_MUTEX_FALLBACK
+#endif
 
 typedef struct cache_entry_t {
     char *key;                    // File path
@@ -28,15 +34,23 @@ typedef struct {
     size_t current_size;          // Current cache size in bytes
     int max_entries;              // Maximum number of entries
     int current_entries;          // Current number of entries
-    pthread_mutex_t lock;         // Mutex for thread safety
-    pthread_mutex_t eviction_lock;// Lock for eviction
+    
+#ifdef USE_MUTEX_FALLBACK
+    pthread_mutex_t rwlock;       /* Fallback: usar mutex normal */
+#else
+    pthread_rwlock_t rwlock;      /* Reader-writer lock para acesso concorrente */
+#endif
+    pthread_mutex_t eviction_lock;/* Lock para eviction (apenas writer) */
+    
 } cache_t;
 
 // Cache operations
 cache_t *cache_create(size_t max_size_mb, int max_entries);
 void cache_destroy(cache_t *cache);
 
-cache_entry_t *cache_get(cache_t *cache, const char *key);
+// MODIFICAÇÃO: Adicionar funções específicas para leitura/escrita
+cache_entry_t *cache_get_read(cache_t *cache, const char *key);  // Usa reader lock
+cache_entry_t *cache_get_write(cache_t *cache, const char *key); // Usa writer lock
 int cache_put(cache_t *cache, const char *key, const void *data, size_t size);
 int cache_remove(cache_t *cache, const char *key);
 void cache_invalidate(cache_t *cache);

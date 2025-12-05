@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>403 - Forbidden</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background: #f8f9fa;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            text-align: center;
+        }
+        .container {
+            padding: 3rem;
+            border: 2px solid #dc3545;
+            border-radius: 8px;
+            background: white;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            max-width: 500px;
+        }
+        h1 {
+            font-size: 4rem;
+            margin: 0;
+            color: #dc3545;
+        }
+        p {
+            font-size: 1.2rem;
+            color: #495057;
+            margin: 1rem 0 2rem;
+        }
+        .warning {
+            background: #fff3cd;
+            border: 1px solid #ffc107;
+            border-radius: 5px;
+            padding: 15px;
+            margin: 20px 0;
+            text-align: left;
+        }
+        .btn {
+            display: inline-block;
+            padding: 10px 20px;
+            background: #dc3545;
+            color: white;
+            text-decoration: none;
+            border-radius: 5px;
+        }
+        .btn:hover {
+            background: #bb2d3b;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>403</h1>
+        <p>Access to this resource is forbidden.</p>
+        
+        <div class="warning">
+            <strong>Security Notice:</strong><br>
+            The server denied access to the requested resource. 
+            This may be due to security restrictions or invalid file paths.
+        </div>
+        
+        <a href="/" class="btn">Return to Homepage</a>
+        
+        <div style="margin-top: 2rem; padding-top: 1rem; border-top: 1px solid #dee2e6; font-size: 0.8rem; color: #6c757d;">
+            Concurrent HTTP Server • Security Protection Active
+        </div>
+    </div>
+</body>
+</html>

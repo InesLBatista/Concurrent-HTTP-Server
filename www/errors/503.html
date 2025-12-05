@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>503 - Service Unavailable</title>
+    <link rel="stylesheet" href="/style.css">
+    <style>
+        .error-container {
+            text-align: center;
+            padding: 60px 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .error-code {
+            font-size: 120px;
+            color: #17a2b8;
+            font-weight: 900;
+            line-height: 1;
+            margin-bottom: 20px;
+            text-shadow: 0 5px 15px rgba(23, 162, 184, 0.3);
+        }
+        .error-title {
+            font-size: 32px;
+            color: #5bc0de;
+            margin-bottom: 20px;
+            font-weight: 700;
+        }
+        .error-description {
+            font-size: 18px;
+            color: #a3d9e3;
+            line-height: 1.6;
+            margin-bottom: 40px;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .maintenance-info {
+            background: rgba(23, 162, 184, 0.1);
+            border: 2px solid rgba(23, 162, 184, 0.3);
+            border-radius: 15px;
+            padding: 30px;
+            margin: 40px auto;
+            max-width: 600px;
+        }
+        .maintenance-title {
+            color: #5bc0de;
+            font-size: 24px;
+            margin-bottom: 20px;
+            font-weight: 700;
+        }
+        .maintenance-details {
+            color: #a3d9e3;
+            line-height: 1.6;
+            margin-bottom: 25px;
+        }
+        .progress-container {
+            margin: 30px 0;
+        }
+        .progress-label {
+            display: flex;
+            justify-content: space-between;
+            color: #a3d9e3;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+        .progress-bar {
+            height: 12px;
+            background: rgba(68, 0, 0, 0.4);
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #17a2b8, #138496);
+            border-radius: 6px;
+            width: 0%;
+            transition: width 0.5s ease;
+        }
+        .status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 40px auto;
+            max-width: 600px;
+        }
+        .status-card {
+            background: rgba(68, 0, 0, 0.4);
+            border: 1px solid rgba(220, 53, 69, 0.3);
+            border-radius: 12px;
+            padding: 20px;
+            text-align: center;
+        }
+        .status-icon {
+            font-size: 32px;
+            margin-bottom: 10px;
+        }
+        .status-name {
+            color: #ff6b6b;
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+        .status-value {
+            color: #5bc0de;
+            font-size: 20px;
+            font-weight: 700;
+        }
+        .eta-container {
+            background: rgba(68, 0, 0, 0.4);
+            border: 1px solid rgba(220, 53, 69, 0.3);
+            border-radius: 12px;
+            padding: 25px;
+            margin: 30px auto;
+            max-width: 600px;
+        }
+        .eta-title {
+            color: #ff6b6b;
+            font-size: 20px;
+            margin-bottom: 15px;
+        }
+        .eta-time {
+            font-size: 32px;
+            color: #5bc0de;
+            font-weight: 900;
+            font-family: monospace;
+            margin: 15px 0;
+        }
+        .eta-note {
+            color: #a3d9e3;
+            font-size: 14px;
+            font-style: italic;
+        }
+        .error-actions {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin-top: 40px;
+        }
+        .btn-error {
+            padding: 14px 28px;
+            border-radius: 10px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            border: none;
+            font-size: 16px;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
+            color: white;
+        }
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 7px 20px rgba(23, 162, 184, 0.3);
+        }
+        .btn-secondary {
+            background: rgba(108, 117, 125, 0.3);
+            color: #adb5bd;
+            border: 1px solid rgba(108, 117, 125, 0.4);
+        }
+        .btn-secondary:hover {
+            background: rgba(108, 117, 125, 0.5);
+            color: white;
+        }
+        .error-id {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            color: #a3d9e3;
+            font-size: 14px;
+            font-family: monospace;
+        }
+        @keyframes wave {
+            0%, 100% { transform: translateY(0); }
+            25% { transform: translateY(-5px); }
+            75% { transform: translateY(5px); }
+        }
+        .error-code {
+            animation: wave 3s ease-in-out infinite;
+        }
+        @keyframes heartbeat {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+        .status-icon.heartbeat {
+            animation: heartbeat 1.5s ease-in-out infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="error-container">
+            <div class="error-code">503</div>
+            <div class="error-title">Service Unavailable</div>
+            
+            <div class="error-description">
+                The server is currently unable to handle your request due to temporary maintenance
+                or capacity problems. Please try again later.
+            </div>
+            
+            <div class="maintenance-info">
+                <div class="maintenance-title">🚧 Scheduled Maintenance</div>
+                <div class="maintenance-details">
+                    We're currently performing scheduled maintenance to improve server performance
+                    and add new features. This maintenance is expected to be completed shortly.
+                </div>
+                
+                <div class="progress-container">
+                    <div class="progress-label">
+                        <span>Maintenance Progress</span>
+                        <span id="progressPercent">0%</span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress-fill" id="progressFill"></div>
+                    </div>
+                </div>
+                
+                <div class="maintenance-details" id="maintenanceStatus">
+                    Initializing maintenance procedures...
+                </div>
+            </div>
+            
+            <div class="status-grid">
+                <div class="status-card">
+                    <div class="status-icon heartbeat">⏱️</div>
+                    <div class="status-name">Estimated Time</div>
+                    <div class="status-value" id="estimatedTime">15 min</div>
+                </div>
+                <div class="status-card">
+                    <div class="status-icon">👥</div>
+                    <div class="status-name">Active Users</div>
+                    <div class="status-value" id="activeUsers">42</div>
+                </div>
+                <div class="status-card">
+                    <div class="status-icon">📊</div>
+                    <div class="status-name">Queue Position</div>
+                    <div class="status-value" id="queuePosition">8</div>
+                </div>
+                <div class="status-card">
+                    <div class="status-icon">🔄</div>
+                    <div class="status-name">Retry Delay</div>
+                    <div class="status-value" id="retryDelay">30s</div>
+                </div>
+            </div>
+            
+            <div class="eta-container">
+                <div class="eta-title">Expected Completion Time</div>
+                <div class="eta-time" id="etaTime">00:15:00</div>
+                <div class="eta-note" id="etaNote">
+                    This is an estimated time. The service may become available earlier.
+                </div>
+            </div>
+            
+            <div class="error-actions">
+                <button onclick="checkStatus()" class="btn-error btn-primary">
+                    🔄 Check Status
+                </button>
+                <button onclick="window.location.href='/'" class="btn-error btn-secondary">
+                    ← Homepage
+                </button>
+                <button onclick="notifyMe()" class="btn-error btn-secondary">
+                    🔔 Notify Me
+                </button>
+            </div>
+            
+            <div class="error-id" id="errorId">
+                Error ID: 503-<span id="errorCode"></span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let progress = 0;
+        let maintenanceInterval;
+        
+        document.addEventListener('DOMContentLoaded', function() {
+            // Generate unique error ID
+            const errorCode = Date.now().toString(36) + '-' + 
+                            Math.random().toString(36).substr(2, 6).toUpperCase();
+            document.getElementById('errorCode').textContent = errorCode;
+            
+            // Add timestamp
+            const timestamp = new Date().toLocaleString();
+            const errorIdElement = document.getElementById('errorId');
+            errorIdElement.innerHTML += `<br>Time: ${timestamp}<br>Status: Maintenance`;
+            
+            // Start maintenance simulation
+            simulateMaintenance();
+            
+            // Start countdown timer
+            startCountdown();
+            
+            // Update active users randomly
+            updateActiveUsers();
+            
+            // Log error to console
+            console.error(`503 Service Unavailable - Error ID: ${errorCode}`);
+        });
+        
+        function simulateMaintenance() {
+            const progressFill = document.getElementById('progressFill');
+            const progressPercent = document.getElementById('progressPercent');
+            const maintenanceStatus = document.getElementById('maintenanceStatus');
+            
+            maintenanceInterval = setInterval(() => {
+                progress += Math.random() * 5;
+                if (progress > 100) progress = 100;
+                
+                progressFill.style.width = `${progress}%`;
+                progressPercent.textContent = `${Math.round(progress)}%`;
+                
+                // Update status messages
+                if (progress < 25) {
+                    maintenanceStatus.textContent = "Initializing maintenance procedures...";
+                } else if (progress < 50) {
+                    maintenanceStatus.textContent = "Performing system updates...";
+                } else if (progress < 75) {
+                    maintenanceStatus.textContent = "Optimizing database and cache...";
+                } else if (progress < 95) {
+                    maintenanceStatus.textContent = "Finalizing updates and running tests...";
+                } else if (progress < 100) {
+                    maintenanceStatus.textContent = "Almost complete... Preparing to resume service.";
+                } else {
+                    maintenanceStatus.textContent = "✅ Maintenance complete! Service will resume shortly.";
+                    clearInterval(maintenanceInterval);
+                    setTimeout(() => {
+                        // In a real scenario, you might redirect or reload
+                        document.querySelector('.maintenance-title').textContent = "✅ Maintenance Complete";
+                        document.querySelector('.maintenance-title').style.color = "#81c784";
+                    }, 1000);
+                }
+            }, 1000);
+        }
+        
+        function startCountdown() {
+            let seconds = 15 * 60; // 15 minutes in seconds
+            const etaTime = document.getElementById('etaTime');
+            
+            const countdownInterval = setInterval(() => {
+                seconds--;
+                if (seconds < 0) {
+                    clearInterval(countdownInterval);
+                    etaTime.textContent = "00:00:00";
+                    document.getElementById('etaNote').textContent = "Maintenance should be complete now.";
+                    return;
+                }
+                
+                const hours = Math.floor(seconds / 3600);
+                const minutes = Math.floor((seconds % 3600) / 60);
+                const secs = seconds % 60;
+                
+                etaTime.textContent = 
+                    `${hours.toString().padStart(2, '0')}:` +
+                    `${minutes.toString().padStart(2, '0')}:` +
+                    `${secs.toString().padStart(2, '0')}`;
+                    
+                // Update estimated time
+                document.getElementById('estimatedTime').textContent = 
+                    `${Math.ceil(seconds / 60)} min`;
+                    
+                // Update retry delay
+                document.getElementById('retryDelay').textContent = 
+                    `${Math.ceil(seconds / 30)}s`;
+            }, 1000);
+        }
+        
+        function updateActiveUsers() {
+            setInterval(() => {
+                const users = Math.floor(Math.random() * 20) + 30; // Random between 30-50
+                document.getElementById('activeUsers').textContent = users;
+                
+                // Update queue position
+                const queue = Math.floor(Math.random() * 5) + 5; // Random between 5-10
+                document.getElementById('queuePosition').textContent = queue;
+            }, 5000);
+        }
+        
+        function checkStatus() {
+            // Simulate status check
+            const statusMessages = [
+                "Checking server status...",
+                "Verifying maintenance progress...",
+                "Connection established...",
+                "Server is still under maintenance",
+                "Please try again in a few minutes"
+            ];
+            
+            let current = 0;
+            const maintenanceStatus = document.getElementById('maintenanceStatus');
+            const originalText = maintenanceStatus.textContent;
+            
+            const interval = setInterval(() => {
+                maintenanceStatus.textContent = statusMessages[current];
+                current++;
+                if (current >= statusMessages.length) {
+                    clearInterval(interval);
+                    setTimeout(() => {
+                        maintenanceStatus.textContent = originalText;
+                    }, 2000);
+                }
+            }, 500);
+        }
+        
+        function notifyMe() {
+            alert("You will be notified when the service is back online. This is a demo.");
+            // In real implementation, you could implement a notification system
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Server Statistics</title>
+    <style>
+        :root {
+            --primary-red: #dc3545;
+            --dark-red: #220000;
+            --medium-red: #440000;
+            --light-red: #ff6b6b;
+            --text-light: #f0f0f0;
+            --text-muted: #ff9999;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, var(--dark-red) 0%, #1a0000 100%);
+            color: var(--text-light);
+            min-height: 100vh;
+            padding: 30px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+            padding: 30px;
+            background: rgba(34, 0, 0, 0.8);
+            border-radius: 15px;
+            border: 1px solid var(--medium-red);
+        }
+        
+        .header h1 {
+            color: var(--primary-red);
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            color: var(--text-muted);
+            font-size: 1.1rem;
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 25px;
+            margin-bottom: 40px;
+        }
+        
+        .stat-card {
+            background: rgba(68, 0, 0, 0.4);
+            border-radius: 12px;
+            padding: 25px;
+            border: 1px solid rgba(220, 53, 69, 0.3);
+            transition: transform 0.3s ease;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-5px);
+            border-color: var(--primary-red);
+        }
+        
+        .stat-card h3 {
+            color: var(--light-red);
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid rgba(220, 53, 69, 0.3);
+        }
+        
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .stat-item:last-child {
+            border-bottom: none;
+        }
+        
+        .stat-label {
+            color: var(--text-muted);
+        }
+        
+        .stat-value {
+            color: var(--text-light);
+            font-weight: 600;
+        }
+        
+        .value-high {
+            color: #81c784;
+        }
+        
+        .value-medium {
+            color: #ffc107;
+        }
+        
+        .value-low {
+            color: #ff6b6b;
+        }
+        
+        .charts {
+            background: rgba(34, 0, 0, 0.8);
+            border-radius: 15px;
+            padding: 30px;
+            margin-bottom: 40px;
+            border: 1px solid var(--medium-red);
+        }
+        
+        .chart-container {
+            margin: 20px 0;
+        }
+        
+        .chart-bar {
+            height: 30px;
+            background: rgba(68, 0, 0, 0.6);
+            border-radius: 15px;
+            margin: 10px 0;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .chart-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary-red), var(--light-red));
+            border-radius: 15px;
+            transition: width 1s ease;
+        }
+        
+        .chart-label {
+            position: absolute;
+            left: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: white;
+            font-weight: 600;
+        }
+        
+        .chart-value {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: white;
+            font-weight: 600;
+        }
+        
+        .actions {
+            text-align: center;
+            padding: 30px;
+        }
+        
+        .btn {
+            background: var(--primary-red);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            margin: 0 10px;
+            transition: all 0.3s ease;
+        }
+        
+        .btn:hover {
+            background: #c82333;
+            transform: translateY(-3px);
+            box-shadow: 0 5px 15px rgba(220, 53, 69, 0.3);
+        }
+        
+        .btn-secondary {
+            background: rgba(108, 117, 125, 0.3);
+            color: #adb5bd;
+        }
+        
+        .btn-secondary:hover {
+            background: rgba(108, 117, 125, 0.5);
+            color: white;
+        }
+        
+        .footer {
+            text-align: center;
+            margin-top: 50px;
+            padding-top: 20px;
+            border-top: 1px solid var(--medium-red);
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+        
+        @media (max-width: 768px) {
+            body {
+                padding: 15px;
+            }
+            
+            .header h1 {
+                font-size: 2rem;
+            }
+            
+            .stats-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .btn {
+                display: block;
+                width: 100%;
+                margin: 10px 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Server Statistics Dashboard</h1>
+            <p>Real-time monitoring of the multithreaded web server</p>
+        </div>
+        
+        <div class="stats-grid">
+            <!-- Request Statistics -->
+            <div class="stat-card">
+                <h3>Request Statistics</h3>
+                <div class="stat-item">
+                    <span class="stat-label">Total Requests</span>
+                    <span class="stat-value">1,542</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Successful</span>
+                    <span class="stat-value value-high">1,489</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Failed</span>
+                    <span class="stat-value value-low">53</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Success Rate</span>
+                    <span class="stat-value value-high">96.6%</span>
+                </div>
+            </div>
+            
+            <!-- Cache Performance -->
+            <div class="stat-card">
+                <h3>Cache Performance</h3>
+                <div class="stat-item">
+                    <span class="stat-label">Cache Hits</span>
+                    <span class="stat-value">873</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Cache Misses</span>
+                    <span class="stat-value">669</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Hit Rate</span>
+                    <span class="stat-value value-high">56.6%</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Avg Response Time</span>
+                    <span class="stat-value">45ms</span>
+                </div>
+            </div>
+            
+            <!-- Resource Usage -->
+            <div class="stat-card">
+                <h3>Resource Usage</h3>
+                <div class="stat-item">
+                    <span class="stat-label">Active Threads</span>
+                    <span class="stat-value">8/16</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Active Processes</span>
+                    <span class="stat-value">4/8</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">Memory Usage</span>
+                    <span class="stat-value">256 MB / 1 GB</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-label">CPU Usage</span>
+                    <span class="stat-value value-medium">42%</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="charts">
+            <h3 style="color: var(--light-red); margin-bottom: 20px;">Performance Charts</h3>
+            
+            <div class="chart-container">
+                <div class="chart-label">Request Success Rate</div>
+                <div class="chart-bar">
+                    <div class="chart-fill" style="width: 96.6%;"></div>
+                    <div class="chart-value">96.6%</div>
+                </div>
+            </div>
+            
+            <div class="chart-container">
+                <div class="chart-label">Cache Hit Rate</div>
+                <div class="chart-bar">
+                    <div class="chart-fill" style="width: 56.6%;"></div>
+                    <div class="chart-value">56.6%</div>
+                </div>
+            </div>
+            
+            <div class="chart-container">
+                <div class="chart-label">Memory Usage</div>
+                <div class="chart-bar">
+                    <div class="chart-fill" style="width: 25%;"></div>
+                    <div class="chart-value">25%</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="actions">
+            <button class="btn" onclick="window.location.href='/'">← Back to Main</button>
+            <button class="btn btn-secondary" onclick="location.reload()">Refresh Stats</button>
+            <button class="btn btn-secondary" onclick="downloadStats()">Download Report</button>
+        </div>
+        
+        <div class="footer">
+            <p>Multithreaded Web Server • Statistics Dashboard • Generated on <span id="currentTime"></span></p>
+            <p>Monitoring interval: 60 seconds • Data is updated in real-time</p>
+        </div>
+    </div>
+    
+    <script>
+        // Update current time
+        function updateTime() {
+            const now = new Date();
+            document.getElementById('currentTime').textContent = 
+                now.toLocaleDateString() + ' ' + now.toLocaleTimeString();
+        }
+        
+        // Simulate downloading stats
+        function downloadStats() {
+            alert('Statistics report would be downloaded (simulated)');
+        }
+        
+        // Animate chart bars on load
+        document.addEventListener('DOMContentLoaded', function() {
+            updateTime();
+            
+            // Animate chart bars
+            const fills = document.querySelectorAll('.chart-fill');
+            fills.forEach(fill => {
+                const width = fill.style.width;
+                fill.style.width = '0%';
+                setTimeout(() => {
+                    fill.style.width = width;
+                }, 100);
+            });
+            
+            // Update time every second
+            setInterval(updateTime, 1000);
+        });
+    </script>
+</body>
+</html>
