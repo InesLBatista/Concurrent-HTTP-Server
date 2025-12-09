@@ -1,166 +1,50 @@
 #include "semaphores.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <fcntl.h>
-#include <errno.h>
 
-#define SEMAPHORE_NAMESPACE "/webserver_sem_"
+/*
+ * Global Synchronization Primitives
+ * These variables implement the classic Producer-Consumer synchronization pattern.
+ *
+ * - empty_slots: Semaphore counting the number of available spaces in the queue.
+ * (Producer waits on this).
+ * - filled_slots: Semaphore counting the number of items currently in the queue.
+ * (Consumer waits on this).
+ * - mutex: Mutual exclusion lock to protect the critical section (queue modification)
+ * from concurrent access.
+ */
+sem_t empty_slots;
+sem_t filled_slots;
+pthread_mutex_t mutex;
 
-int semaphores_init(semaphores_t *sems, int queue_size) {
-    if (!sems) {
-        return -1;
+/*
+ * Initialize Semaphores
+ * Purpose: Initializes the semaphores and mutex with the correct starting values
+ * for a bounded buffer of size 'max_queue_size'.
+ *
+ * Parameters:
+ * - max_queue_size: The capacity of the buffer/queue.
+ *
+ * Initialization Logic:
+ * 1. empty_slots: Initialized to 'max_queue_size' because the buffer starts empty.
+ * 2. filled_slots: Initialized to 0 because there are no items to consume yet.
+ * 3. pshared=1: The second argument to sem_init is '1', indicating these semaphores
+ * are intended to be shared between processes (requires the variables to be 
+ * located in shared memory, though here they are global).
+ *
+ * Return:
+ * - Void (Exits the program with status 1 on failure).
+ */
+void init_semaphores(int max_queue_size)
+{
+    /* Initialize empty_slots to the buffer capacity */
+    if (sem_init(&empty_slots, 1, max_queue_size) != 0 ||
+        /* Initialize filled_slots to 0 */
+        sem_init(&filled_slots, 1, 0) != 0 ||
+        /* Initialize the mutex with default attributes */
+        pthread_mutex_init(&mutex, NULL) != 0)
+    {
+        perror("Semaphore or mutex init failed");
+        exit(1);
     }
-    
-    // Initialize all semaphores to NULL
-    memset(sems, 0, sizeof(semaphores_t));
-    
-    // Create unique semaphore names using process ID
-    pid_t pid = getpid();
-    char sem_name[64];
-    
-    // Empty slots semaphore (initially has queue_size empty slots)
-    snprintf(sem_name, sizeof(sem_name), "%s_empty_%d", SEMAPHORE_NAMESPACE, pid);
-    sems->empty_slots = sem_open(sem_name, O_CREAT | O_EXCL, 0644, queue_size);
-    if (sems->empty_slots == SEM_FAILED) {
-        fprintf(stderr, "Failed to create empty_slots semaphore: %s\n", strerror(errno));
-        return -1;
-    }
-    strncpy(sems->empty_slots_name, sem_name, sizeof(sems->empty_slots_name));
-    
-    // Filled slots semaphore (initially 0 filled slots)
-    snprintf(sem_name, sizeof(sem_name), "%s_filled_%d", SEMAPHORE_NAMESPACE, pid);
-    sems->filled_slots = sem_open(sem_name, O_CREAT | O_EXCL, 0644, 0);
-    if (sems->filled_slots == SEM_FAILED) {
-        fprintf(stderr, "Failed to create filled_slots semaphore: %s\n", strerror(errno));
-        semaphores_destroy(sems);
-        return -1;
-    }
-    strncpy(sems->filled_slots_name, sem_name, sizeof(sems->filled_slots_name));
-    
-    // Queue mutex semaphore (binary semaphore)
-    snprintf(sem_name, sizeof(sem_name), "%s_queue_%d", SEMAPHORE_NAMESPACE, pid);
-    sems->queue_mutex = sem_open(sem_name, O_CREAT | O_EXCL, 0644, 1);
-    if (sems->queue_mutex == SEM_FAILED) {
-        fprintf(stderr, "Failed to create queue_mutex semaphore: %s\n", strerror(errno));
-        semaphores_destroy(sems);
-        return -1;
-    }
-    strncpy(sems->queue_mutex_name, sem_name, sizeof(sems->queue_mutex_name));
-    
-    // Statistics mutex semaphore (binary semaphore)
-    snprintf(sem_name, sizeof(sem_name), "%s_stats_%d", SEMAPHORE_NAMESPACE, pid);
-    sems->stats_mutex = sem_open(sem_name, O_CREAT | O_EXCL, 0644, 1);
-    if (sems->stats_mutex == SEM_FAILED) {
-        fprintf(stderr, "Failed to create stats_mutex semaphore: %s\n", strerror(errno));
-        semaphores_destroy(sems);
-        return -1;
-    }
-    strncpy(sems->stats_mutex_name, sem_name, sizeof(sems->stats_mutex_name));
-    
-    // Log mutex semaphore (binary semaphore)
-    snprintf(sem_name, sizeof(sem_name), "%s_log_%d", SEMAPHORE_NAMESPACE, pid);
-    sems->log_mutex = sem_open(sem_name, O_CREAT | O_EXCL, 0644, 1);
-    if (sems->log_mutex == SEM_FAILED) {
-        fprintf(stderr, "Failed to create log_mutex semaphore: %s\n", strerror(errno));
-        semaphores_destroy(sems);
-        return -1;
-    }
-    strncpy(sems->log_mutex_name, sem_name, sizeof(sems->log_mutex_name));
-    
-    printf("Semaphores initialized successfully\n");
-    return 0;
-}
-
-void semaphores_destroy(semaphores_t *sems) {
-    if (!sems) {
-        return;
-    }
-    
-    // Close and unlink all semaphores
-    if (sems->empty_slots != SEM_FAILED) {
-        sem_close(sems->empty_slots);
-        sem_unlink(sems->empty_slots_name);
-    }
-    
-    if (sems->filled_slots != SEM_FAILED) {
-        sem_close(sems->filled_slots);
-        sem_unlink(sems->filled_slots_name);
-    }
-    
-    if (sems->queue_mutex != SEM_FAILED) {
-        sem_close(sems->queue_mutex);
-        sem_unlink(sems->queue_mutex_name);
-    }
-    
-    if (sems->stats_mutex != SEM_FAILED) {
-        sem_close(sems->stats_mutex);
-        sem_unlink(sems->stats_mutex_name);
-    }
-    
-    if (sems->log_mutex != SEM_FAILED) {
-        sem_close(sems->log_mutex);
-        sem_unlink(sems->log_mutex_name);
-    }
-    
-    printf("Semaphores destroyed\n");
-}
-
-int semaphore_wait(sem_t *sem, const char *sem_name) {
-    if (sem_wait(sem) == -1) {
-        fprintf(stderr, "Failed to wait on semaphore %s: %s\n", 
-                sem_name, strerror(errno));
-        return -1;
-    }
-    return 0;
-}
-
-int semaphore_post(sem_t *sem, const char *sem_name) {
-    if (sem_post(sem) == -1) {
-        fprintf(stderr, "Failed to post on semaphore %s: %s\n", 
-                sem_name, strerror(errno));
-        return -1;
-    }
-    return 0;
-}
-
-int semaphore_trywait(sem_t *sem, const char *sem_name) {
-    if (sem_trywait(sem) == -1) {
-        if (errno != EAGAIN) {
-            fprintf(stderr, "Failed to trywait on semaphore %s: %s\n", 
-                    sem_name, strerror(errno));
-        }
-        return -1;
-    }
-    return 0;
-}
-
-int semaphore_getvalue(sem_t *sem, int *value, const char *sem_name) {
-    if (sem_getvalue(sem, value) == -1) {
-        fprintf(stderr, "Failed to get value of semaphore %s: %s\n", 
-                sem_name, strerror(errno));
-        return -1;
-    }
-    return 0;
-}
-
-void semaphores_print_status(const semaphores_t *sems) {
-    if (!sems) {
-        return;
-    }
-    
-    int empty_value, filled_value, queue_value, stats_value, log_value;
-    
-    sem_getvalue(sems->empty_slots, &empty_value);
-    sem_getvalue(sems->filled_slots, &filled_value);
-    sem_getvalue(sems->queue_mutex, &queue_value);
-    sem_getvalue(sems->stats_mutex, &stats_value);
-    sem_getvalue(sems->log_mutex, &log_value);
-    
-    printf("\n=== Semaphore Status ===\n");
-    printf("Empty slots: %d\n", empty_value);
-    printf("Filled slots: %d\n", filled_value);
-    printf("Queue mutex: %s\n", queue_value > 0 ? "unlocked" : "locked");
-    printf("Stats mutex: %s\n", stats_value > 0 ? "unlocked" : "locked");
-    printf("Log mutex: %s\n", log_value > 0 ? "unlocked" : "locked");
 }

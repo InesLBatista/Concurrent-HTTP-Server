@@ -1,240 +1,43 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>404 - Page Not Found</title>
-    <link rel="stylesheet" href="/style.css">
+    <title>404 Not Found</title>
     <style>
-        .error-container {
+        body {
+            font-family: sans-serif;
             text-align: center;
-            padding: 60px 20px;
-            max-width: 800px;
-            margin: 0 auto;
+            padding: 50px;
+            background: #f4f4f4;
         }
-        .error-code {
-            font-size: 120px;
-            color: #dc3545;
-            font-weight: 900;
-            line-height: 1;
-            margin-bottom: 20px;
-            text-shadow: 0 5px 15px rgba(220, 53, 69, 0.3);
-            position: relative;
+
+        h1 {
+            font-size: 50px;
+            color: #333;
         }
-        .error-code::after {
-            content: '🚫';
-            position: absolute;
-            font-size: 60px;
-            right: 10%;
-            top: 10%;
-            opacity: 0.3;
+
+        p {
+            font-size: 20px;
+            color: #666;
         }
-        .error-title {
-            font-size: 32px;
-            color: #ff6b6b;
-            margin-bottom: 20px;
-            font-weight: 700;
-        }
-        .error-description {
-            font-size: 18px;
-            color: #ff9999;
-            line-height: 1.6;
-            margin-bottom: 40px;
-            max-width: 600px;
-            margin-left: auto;
-            margin-right: auto;
-        }
-        .suggestions {
-            background: rgba(68, 0, 0, 0.4);
-            border: 1px solid rgba(220, 53, 69, 0.3);
-            border-radius: 12px;
-            padding: 30px;
-            margin: 40px auto;
-            max-width: 600px;
-            text-align: left;
-        }
-        .suggestions h3 {
-            color: #ff6b6b;
-            margin-bottom: 20px;
-            border-bottom: 2px solid rgba(220, 53, 69, 0.3);
-            padding-bottom: 10px;
-        }
-        .suggestions ul {
-            list-style: none;
-            padding: 0;
-        }
-        .suggestions li {
-            padding: 12px 0;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        .suggestions li:last-child {
-            border-bottom: none;
-        }
-        .suggestions a {
-            color: #ff6b6b;
-            text-decoration: none;
-            font-weight: 600;
-            display: block;
-            padding: 8px 15px;
-            border-radius: 6px;
-            transition: all 0.3s ease;
-        }
-        .suggestions a:hover {
-            background: rgba(220, 53, 69, 0.2);
-            padding-left: 20px;
-        }
-        .suggestions a::before {
-            content: '→ ';
-            opacity: 0.7;
-        }
-        .search-box {
-            margin: 30px auto;
-            max-width: 500px;
-        }
-        .search-input {
-            width: 100%;
-            padding: 16px 20px;
-            background: rgba(68, 0, 0, 0.4);
-            border: 2px solid rgba(220, 53, 69, 0.3);
+
+        .container {
+            background: white;
+            padding: 40px;
             border-radius: 10px;
-            color: white;
-            font-size: 16px;
-            margin-bottom: 15px;
-        }
-        .search-input:focus {
-            outline: none;
-            border-color: #dc3545;
-        }
-        .error-actions {
-            display: flex;
-            gap: 15px;
-            justify-content: center;
-            flex-wrap: wrap;
-            margin-top: 40px;
-        }
-        .btn-error {
-            padding: 14px 28px;
-            border-radius: 10px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            border: none;
-            font-size: 16px;
-        }
-        .btn-primary {
-            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
-            color: white;
-        }
-        .btn-primary:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 7px 20px rgba(220, 53, 69, 0.3);
-        }
-        .btn-secondary {
-            background: rgba(108, 117, 125, 0.3);
-            color: #adb5bd;
-            border: 1px solid rgba(108, 117, 125, 0.4);
-        }
-        .btn-secondary:hover {
-            background: rgba(108, 117, 125, 0.5);
-            color: white;
-        }
-        .error-id {
-            margin-top: 40px;
-            padding-top: 20px;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            color: #ff9999;
-            font-size: 14px;
-            font-family: monospace;
-        }
-        @keyframes float {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-10px); }
-        }
-        .error-code {
-            animation: float 3s ease-in-out infinite;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            display: inline-block;
         }
     </style>
 </head>
+
 <body>
     <div class="container">
-        <div class="error-container">
-            <div class="error-code">404</div>
-            <div class="error-title">Page Not Found</div>
-            
-            <div class="error-description">
-                The page you are looking for might have been removed, had its name changed,
-                or is temporarily unavailable.
-            </div>
-            
-            <div class="search-box">
-                <input type="text" 
-                       id="searchInput" 
-                       class="search-input" 
-                       placeholder="Search for content on this server..."
-                       onkeypress="if(event.key === 'Enter') searchContent()">
-                <button onclick="searchContent()" class="btn-error btn-primary" style="width: 100%;">
-                    🔍 Search
-                </button>
-            </div>
-            
-            <div class="suggestions">
-                <h3>Try these pages instead:</h3>
-                <ul>
-                    <li><a href="/">Home Page</a></li>
-                    <li><a href="/api/data.json">Server Data & API</a></li>
-                    <li><a href="/api/stats.html">Server Statistics</a></li>
-                    <li><a href="/test/test.html">Test Suite</a></li>
-                    <li><a href="/images/logo.svg">Server Logo</a></li>
-                    <li><a href="/assets/test.pdf.html">PDF Test Document</a></li>
-                </ul>
-            </div>
-            
-            <div class="error-actions">
-                <button onclick="window.location.href='/'" class="btn-error btn-primary">
-                    ← Homepage
-                </button>
-                <button onclick="history.back()" class="btn-error btn-secondary">
-                    ← Go Back
-                </button>
-                <button onclick="location.reload()" class="btn-error btn-secondary">
-                    ↻ Refresh
-                </button>
-            </div>
-            
-            <div class="error-id" id="errorId">
-                Error ID: 404-<span id="errorCode"></span><br>
-                Requested URL: <span id="requestedUrl"></span>
-            </div>
-        </div>
+        <h1>404</h1>
+        <p>Oops! The page you are looking for does not exist.</p>
+        <a href="/">Go Back Home</a>
     </div>
-
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // Generate unique error ID
-            const errorCode = Date.now().toString(36) + '-' + 
-                            Math.random().toString(36).substr(2, 6).toUpperCase();
-            document.getElementById('errorCode').textContent = errorCode;
-            
-            // Show requested URL
-            const requestedUrl = window.location.pathname;
-            document.getElementById('requestedUrl').textContent = requestedUrl;
-            
-            // Add timestamp
-            const timestamp = new Date().toLocaleString();
-            const errorIdElement = document.getElementById('errorId');
-            errorIdElement.innerHTML += `<br>Time: ${timestamp}`;
-            
-            // Log error to console
-            console.error(`404 Not Found - ${requestedUrl} - Error ID: ${errorCode}`);
-        });
-        
-        function searchContent() {
-            const query = document.getElementById('searchInput').value.trim();
-            if (query) {
-                // Simple search - you can enhance this with actual search functionality
-                alert(`Search for "${query}" would be performed. This is a demo.`);
-            }
-        }
-    </script>
 </body>
+
 </html>

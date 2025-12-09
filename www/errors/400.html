@@ -1,160 +1,42 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>400 - Bad Request</title>
-    <link rel="stylesheet" href="/style.css">
+    <title>400 Bad Request</title>
     <style>
-        .error-container {
+        body {
+            font-family: sans-serif;
             text-align: center;
-            padding: 60px 20px;
-            max-width: 800px;
-            margin: 0 auto;
+            padding: 50px;
+            background: #f4f4f4;
         }
-        .error-code {
-            font-size: 120px;
-            color: #dc3545;
-            font-weight: 900;
-            line-height: 1;
-            margin-bottom: 20px;
-            text-shadow: 0 5px 15px rgba(220, 53, 69, 0.3);
+
+        h1 {
+            font-size: 50px;
+            color: #333;
         }
-        .error-title {
-            font-size: 32px;
-            color: #ff6b6b;
-            margin-bottom: 20px;
-            font-weight: 700;
+
+        p {
+            font-size: 20px;
+            color: #666;
         }
-        .error-description {
-            font-size: 18px;
-            color: #ff9999;
-            line-height: 1.6;
-            margin-bottom: 40px;
-            max-width: 600px;
-            margin-left: auto;
-            margin-right: auto;
-        }
-        .error-details {
-            background: rgba(68, 0, 0, 0.4);
-            border: 1px solid rgba(220, 53, 69, 0.3);
-            border-radius: 12px;
-            padding: 25px;
-            margin: 40px auto;
-            max-width: 600px;
-            text-align: left;
-        }
-        .error-details h3 {
-            color: #ff6b6b;
-            margin-bottom: 15px;
-            border-bottom: 2px solid rgba(220, 53, 69, 0.3);
-            padding-bottom: 10px;
-        }
-        .error-actions {
-            display: flex;
-            gap: 15px;
-            justify-content: center;
-            flex-wrap: wrap;
-            margin-top: 40px;
-        }
-        .btn-error {
-            padding: 14px 28px;
+
+        .container {
+            background: white;
+            padding: 40px;
             border-radius: 10px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            border: none;
-            font-size: 16px;
-        }
-        .btn-primary {
-            background: linear-gradient(135deg, #dc3545 0%, #c82333 100%);
-            color: white;
-        }
-        .btn-primary:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 7px 20px rgba(220, 53, 69, 0.3);
-        }
-        .btn-secondary {
-            background: rgba(108, 117, 125, 0.3);
-            color: #adb5bd;
-            border: 1px solid rgba(108, 117, 125, 0.4);
-        }
-        .btn-secondary:hover {
-            background: rgba(108, 117, 125, 0.5);
-            color: white;
-        }
-        .error-id {
-            margin-top: 40px;
-            padding-top: 20px;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            color: #ff9999;
-            font-size: 14px;
-            font-family: monospace;
-        }
-        @keyframes shake {
-            0%, 100% { transform: translateX(0); }
-            10%, 30%, 50%, 70%, 90% { transform: translateX(-5px); }
-            20%, 40%, 60%, 80% { transform: translateX(5px); }
-        }
-        .error-code {
-            animation: shake 0.5s ease-in-out;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            display: inline-block;
         }
     </style>
 </head>
+
 <body>
     <div class="container">
-        <div class="error-container">
-            <div class="error-code">400</div>
-            <div class="error-title">Bad Request</div>
-            
-            <div class="error-description">
-                The server cannot process your request due to invalid syntax or malformed request.
-                Please check your request and try again.
-            </div>
-            
-            <div class="error-details">
-                <h3>Common Causes:</h3>
-                <ul style="color: #ff9999; line-height: 1.8; padding-left: 20px;">
-                    <li>Invalid URL syntax or malformed request</li>
-                    <li>Missing or incorrect request parameters</li>
-                    <li>Invalid HTTP method for the requested resource</li>
-                    <li>Request header issues or size limitations</li>
-                </ul>
-            </div>
-            
-            <div class="error-actions">
-                <button onclick="window.location.href='/'" class="btn-error btn-primary">
-                    ← Return to Homepage
-                </button>
-                <button onclick="history.back()" class="btn-error btn-secondary">
-                    ← Go Back
-                </button>
-                <button onclick="location.reload()" class="btn-error btn-secondary">
-                    ↻ Try Again
-                </button>
-            </div>
-            
-            <div class="error-id" id="errorId">
-                Error ID: 400-<span id="errorCode"></span>
-            </div>
-        </div>
+        <h1>400</h1>
+        <p>Your browser sent a request that this server could not understand.</p>
     </div>
-
-    <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            // Generate unique error ID
-            const errorCode = Date.now().toString(36) + '-' + 
-                            Math.random().toString(36).substr(2, 6).toUpperCase();
-            document.getElementById('errorCode').textContent = errorCode;
-            
-            // Add timestamp
-            const timestamp = new Date().toLocaleString();
-            const errorIdElement = document.getElementById('errorId');
-            errorIdElement.innerHTML += `<br>Time: ${timestamp}`;
-            
-            // Log error to console
-            console.error(`400 Bad Request - Error ID: ${errorCode}`);
-        });
-    </script>
 </body>
+
 </html>

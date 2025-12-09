@@ -1,660 +1,648 @@
-/* worker.c - VERSÃO COMPLETA COM LOGGING */
+#define _POSIX_C_SOURCE 199309L 
 
-#include "worker.h"
-#include "thread_pool.h"
-#include "http.h"
-#include "logger.h"
-#include "shared_mem.h"
-#include "cache.h"
-
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h> 
+#include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
-#include <signal.h>
-#include <errno.h>
-#include <sys/time.h>
 #include <sys/stat.h>
-#include <limits.h>
-#include <fcntl.h>
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
+#include <pthread.h>
+#include <time.h> 
+#include <sys/time.h> 
 
-/* Definir PATH_MAX se não definido */
-#ifndef PATH_MAX
-#define PATH_MAX 4096
-#endif
+#include "http.h"
+#include "config.h"
+#include "shared_mem.h"
+#include "thread_pool.h"
+#include <sys/uio.h>
+#include "logger.h"
+#include "worker.h"
+#include "cache.h"
 
-#ifndef MAX_QUEUE_SIZE
-#define MAX_QUEUE_SIZE 100
-#endif
+/* Access global config and shared structures */
+extern server_config_t config;
+extern connection_queue_t *queue;
 
-/* Variáveis globais */
-volatile int worker_running = 1;
-static cache_t *worker_cache = NULL;
-static logger_t *worker_logger = NULL;  /* ADICIONADO: Logger por worker */
-
-/* ==================== FUNÇÕES DE INICIALIZAÇÃO ==================== */
-
-static void worker_cache_init(int worker_id) {
-    worker_cache = cache_create(10, CACHE_MAX_ENTRIES);
-    if (!worker_cache) {
-        fprintf(stderr, "Worker %d: Failed to create cache\n", worker_id);
-        exit(EXIT_FAILURE);
-    }
-    printf("Worker %d: Cache initialized\n", worker_id);
+/*
+ * Helper: Calculate Time Difference in Milliseconds
+ * Purpose: Computes the elapsed time between two timespec structs.
+ * Used for tracking request latency.
+ */
+long get_time_diff_ms(struct timespec start, struct timespec end) {
+    return (end.tv_sec - start.tv_sec) * 1000 + (end.tv_nsec - start.tv_nsec) / 1000000;
 }
 
-static void worker_cache_cleanup(int worker_id) {
-    if (worker_cache) {
-        cache_print_stats(worker_cache);
-        cache_destroy(worker_cache);
-        worker_cache = NULL;
-        printf("Worker %d: Cache cleaned up\n", worker_id);
-    }
-}
-
-/* ADICIONADO: Inicializar logger */
-static void worker_logger_init(int worker_id) {
-    char log_filename[256];
-    snprintf(log_filename, sizeof(log_filename), 
-             "logs/worker%d.log", worker_id);
-    
-    /* Criar diretório logs se não existir */
-    mkdir("logs", 0755);
-    
-    worker_logger = logger_init(log_filename, 1); /* Habilitar rotação */
-    if (!worker_logger) {
-        fprintf(stderr, "Worker %d: Failed to initialize logger\n", worker_id);
-        exit(EXIT_FAILURE);
-    }
-    
-    /* Configurar tamanho máximo para 10MB */
-    logger_set_max_size(worker_logger, 10 * 1024 * 1024);
-    logger_set_max_backups(worker_logger, 5);
-    
-    printf("Worker %d: Logger initialized (%s)\n", worker_id, log_filename);
-}
-
-/* ADICIONADO: Limpar logger */
-static void worker_logger_cleanup(int worker_id) {
-    if (worker_logger) {
-        printf("\nWorker %d: Final logger statistics:\n", worker_id);
-        printf("  Buffer entries: %zu\n", logger_get_buffer_count(worker_logger));
-        printf("  File size: %.2f MB\n", 
-               logger_get_file_size(worker_logger) / (1024.0 * 1024.0));
-        
-        logger_destroy(worker_logger);
-        worker_logger = NULL;
-        printf("Worker %d: Logger cleaned up\n", worker_id);
+/*
+ * Helper: Get Client IP Address
+ * Purpose: Extracts the client's IP address string from the socket file descriptor.
+ * This is used specifically for the access logs.
+ */
+void get_client_ip(int client_fd, char *ip_buffer, size_t buffer_len) {
+    struct sockaddr_in addr;
+    socklen_t addr_len = sizeof(addr);
+    if (getpeername(client_fd, (struct sockaddr *)&addr, &addr_len) == 0) {
+        inet_ntop(AF_INET, &addr.sin_addr, ip_buffer, buffer_len);
+    } else {
+        strncpy(ip_buffer, "unknown", buffer_len);
     }
 }
 
-/* ==================== FUNÇÕES AUXILIARES ==================== */
-
-static double get_time_ms() {
-    struct timeval tv;
-    gettimeofday(&tv, NULL);
-    return tv.tv_sec * 1000.0 + tv.tv_usec / 1000.0;
-}
-
-static const char* get_content_type(const char* filename) {
-    const char* ext = strrchr(filename, '.');
-    if (!ext) return "text/plain";
-    
-    if (strcmp(ext, ".html") == 0 || strcmp(ext, ".htm") == 0) return "text/html";
-    if (strcmp(ext, ".css") == 0) return "text/css";
-    if (strcmp(ext, ".js") == 0) return "application/javascript";
-    if (strcmp(ext, ".jpg") == 0 || strcmp(ext, ".jpeg") == 0) return "image/jpeg";
-    if (strcmp(ext, ".png") == 0) return "image/png";
-    if (strcmp(ext, ".gif") == 0) return "image/gif";
-    if (strcmp(ext, ".txt") == 0) return "text/plain";
-    if (strcmp(ext, ".json") == 0) return "application/json";
-    
+/*
+ * Helper: Determine MIME Type
+ * Purpose: Returns the correct Content-Type header based on the file extension.
+ * Defaults to "application/octet-stream" for unknown types.
+ */
+const char *get_mime_type(const char *path)
+{
+    const char *ext = strrchr(path, '.');
+    if (!ext)
+        return "application/octet-stream";
+    if (strcmp(ext, ".html") == 0)
+        return "text/html";
+    if (strcmp(ext, ".css") == 0)
+        return "text/css";
+    if (strcmp(ext, ".js") == 0)
+        return "application/javascript";
+    if (strcmp(ext, ".png") == 0)
+        return "image/png";
+    if (strcmp(ext, ".jpg") == 0 || strcmp(ext, ".jpeg") == 0)
+        return "image/jpeg";
+    if (strcmp(ext, ".pdf") == 0)
+        return "application/pdf";
     return "application/octet-stream";
 }
 
-static int is_static_file(const char* path) {
-    const char* ext = strrchr(path, '.');
-    if (!ext) return 0;
-    
-    if (strcmp(ext, ".html") == 0 || strcmp(ext, ".htm") == 0 ||
-        strcmp(ext, ".css") == 0 || strcmp(ext, ".js") == 0 ||
-        strcmp(ext, ".jpg") == 0 || strcmp(ext, ".jpeg") == 0 ||
-        strcmp(ext, ".png") == 0 || strcmp(ext, ".gif") == 0 ||
-        strcmp(ext, ".ico") == 0 || strcmp(ext, ".txt") == 0 ||
-        strcmp(ext, ".pdf") == 0 || strcmp(ext, ".svg") == 0) {
-        return 1;
-    }
-    
-    return 0;
-}
+/*
+ * Handle Client Request (Core Logic)
+ * Purpose: Processes a single HTTP request from start to finish.
+ *
+ * Workflow:
+ * 1. Updates "Active Connections" stat.
+ * 2. Reads and parses the HTTP request.
+ * 3. Validates method (GET/HEAD only) and security (no ".." paths).
+ * 4. Resolves the physical file path (handling index.html).
+ * 5. Checks the In-Memory Cache (for small files).
+ * 6. If not cached, reads from disk and populates the cache.
+ * 7. Sends the HTTP response.
+ * 8. Updates final stats and logs the request.
+ *
+ * - Uses shared memory semaphores to atomic updates to global stats.
+ * - Uses cache_get/cache_put which handle their own Read-Write locks.
+ */
 
-/* ADICIONADO: Função para extrair User-Agent da requisição */
-static void parse_http_headers(const char* request, char* user_agent, size_t ua_size) {
-    /* Inicializar com valor padrão */
-    strncpy(user_agent, "-", ua_size);
-    
-    /* Procurar User-Agent header */
-    const char* ua_start = strstr(request, "User-Agent:");
-    if (ua_start) {
-        ua_start += 11; /* Pular "User-Agent:" */
-        
-        /* Pular espaços */
-        while (*ua_start == ' ') ua_start++;
-        
-        /* Copiar até o fim da linha */
-        const char* ua_end = strstr(ua_start, "\r\n");
-        if (ua_end) {
-            size_t len = ua_end - ua_start;
-            if (len > ua_size - 1) len = ua_size - 1;
-            strncpy(user_agent, ua_start, len);
-            user_agent[len] = '\0';
+/*
+ * Helper: Send Error Page
+ * Purpose: Serves a custom error page from www/errors/ if available.
+ * Falls back to a hardcoded string if the file is missing.
+ */
+static void send_error_page(int client_fd, int status_code, const char *status_text, long *bytes_sent)
+{
+    char filepath[1024];
+    snprintf(filepath, sizeof(filepath), "%s/errors/%d.html", config.document_root, status_code);
+
+    struct stat st;
+    if (stat(filepath, &st) == 0) {
+        /* Serve custom error page */
+        FILE *fp = fopen(filepath, "rb");
+        if (fp) {
+            char *buf = malloc(st.st_size);
+            if (buf) {
+                size_t rb = fread(buf, 1, st.st_size, fp);
+                if (rb == (size_t)st.st_size) {
+                    send_http_response(client_fd, status_code, status_text, "text/html", buf, st.st_size);
+                    *bytes_sent = st.st_size;
+                    free(buf);
+                    fclose(fp);
+                    return;
+                }
+                free(buf);
+            }
+            fclose(fp);
         }
     }
+
+    /* Fallback: Hardcoded error message */
+    char body[512];
+    snprintf(body, sizeof(body), "<h1>%d %s</h1>", status_code, status_text);
+    size_t len = strlen(body);
+    send_http_response(client_fd, status_code, status_text, "text/html", body, len);
+    *bytes_sent = len;
 }
 
-/* ==================== FUNÇÃO DE LOGGING ==================== */
+void handle_client(int client_socket)
+{
+    struct timespec start_time, end_time;
+    
+    /* 1. Increment Active Connections (Critical Section) */
+    sem_wait(&stats->mutex);
+    stats->active_connections++;
+    sem_post(&stats->mutex);
 
-/* ADICIONADO: Função para fazer logging da requisição */
-static void log_http_request(struct sockaddr_in* client_addr,
-                            const char* method, const char* uri,
-                            const char* protocol, int status,
-                            size_t bytes_sent, const char* user_agent) {
-    
-    if (!worker_logger) return;
-    
-    /* Converter IP para string */
-    char remote_addr[INET_ADDRSTRLEN];
-    inet_ntop(AF_INET, &(client_addr->sin_addr), remote_addr, INET_ADDRSTRLEN);
-    
-    /* Determinar nível de log baseado no status */
-    log_level_t level = LOG_LEVEL_INFO;
-    if (status >= 400 && status < 500) {
-        level = LOG_LEVEL_WARNING;
-    } else if (status >= 500) {
-        level = LOG_LEVEL_ERROR;
-    }
-    
-    /* Log no formato Apache Combined */
-    logger_log(worker_logger, level, remote_addr, "-",
-               method, uri, protocol, status, bytes_sent,
-               "-", user_agent);
-}
+    char client_ip[INET_ADDRSTRLEN];
+    get_client_ip(client_socket, client_ip, sizeof(client_ip));
 
-/* ==================== FUNÇÕES PRINCIPAIS ==================== */
+    /* Set Socket Timeout for Keep-Alive */
+    struct timeval tv;
+    tv.tv_sec = config.keep_alive_timeout > 0 ? config.keep_alive_timeout : 5;
+    tv.tv_usec = 0;
+    setsockopt(client_socket, SOL_SOCKET, SO_RCVTIMEO, (const char*)&tv, sizeof tv);
 
-void worker_signal_handler(int signum) {
-    worker_running = 0;
-    printf("Worker received signal %d, shutting down...\n", signum);
-}
+    while (1) {
+        clock_gettime(CLOCK_MONOTONIC, &start_time);
 
-int dequeue_connection(shared_data_t* data, semaphores_t* sems) {
-    if (sem_wait(sems->filled_slots) == -1) {
-        if (errno == EINTR) return -1;
-        perror("sem_wait filled_slots");
-        return -1;
-    }
-    
-    if (sem_wait(sems->queue_mutex) == -1) {
-        sem_post(sems->filled_slots);
-        if (errno == EINTR) return -1;
-        perror("sem_wait queue_mutex");
-        return -1;
-    }
-    
-    int client_fd = -1;
-    client_fd = shared_queue_dequeue(&data->queue);
-    
-    if (client_fd == -1) {
-        sem_post(sems->queue_mutex);
-        sem_post(sems->filled_slots);
-        return -1;
-    }
-    
-    sem_post(sems->queue_mutex);
-    sem_post(sems->empty_slots);
-    
-    return client_fd;
-}
+        /* Read Request */
+        char buffer[2048];
+        ssize_t bytes = recv(client_socket, buffer, sizeof(buffer) - 1, 0);
 
-static int serve_file_direct(int client_fd, const char* full_path) {
-    FILE* file = fopen(full_path, "rb");
-    if (!file) return -1;
-    
-    fseek(file, 0, SEEK_END);
-    long file_size = ftell(file);
-    fseek(file, 0, SEEK_SET);
-    
-    if (file_size > 100 * 1024 * 1024) {
-        fclose(file);
-        return -1;
-    }
-    
-    char* buffer = malloc(file_size);
-    if (!buffer) {
-        fclose(file);
-        return -1;
-    }
-    
-    size_t bytes_read = fread(buffer, 1, file_size, file);
-    fclose(file);
-    
-    if (bytes_read != file_size) {
-        free(buffer);
-        return -1;
-    }
-    
-    char response_header[512];
-    snprintf(response_header, sizeof(response_header),
-             "HTTP/1.1 200 OK\r\n"
-             "Content-Type: %s\r\n"
-             "Content-Length: %ld\r\n"
-             "Connection: close\r\n"
-             "\r\n",
-             get_content_type(full_path), file_size);
-    
-    send(client_fd, response_header, strlen(response_header), 0);
-    send(client_fd, buffer, file_size, 0);
-    
-    free(buffer);
-    return 0;
-}
+        int status_code = 0;
+        long bytes_sent = 0;
+        http_request_t req = {0}; 
 
-static int serve_file_with_cache(int client_fd, const char* filepath, 
-                                const char* document_root,
-                                shared_data_t* shared_data,
-                                int worker_id) {
-    
-    char full_path[PATH_MAX];
-    struct stat file_stat;
-    
-    snprintf(full_path, sizeof(full_path), "%s/%s", document_root, filepath);
-    
-    if (stat(full_path, &file_stat) != 0 || !S_ISREG(file_stat.st_mode)) {
-        return -1;
+        if (bytes <= 0)
+        {
+            /* Connection closed or timeout */
+            break; 
+        }
+        buffer[bytes] = '\0';
+
+    if (parse_http_request(buffer, &req) != 0)
+    {
+        status_code = 400;
+        send_error_page(client_socket, 400, "Bad Request", &bytes_sent);
+        /* Don't close immediately, just break loop to cleanup */
+        status_code = 400;
+        goto update_stats_and_log; 
     }
-    
-    if (file_stat.st_size <= CACHE_MAX_FILE_SIZE) {
-        double start_time = get_time_ms();
-        cache_entry_t* cached_entry = cache_get_read(worker_cache, full_path);
-        double end_time = get_time_ms();
-        
-        if (cached_entry) {
-            /* Cache HIT */
-            log_cache_operation(worker_id, filepath, 1);
+
+    /* Validate Method (Only GET and HEAD supported) */
+    int is_head = (strcmp(req.method, "HEAD") == 0);
+    if (strcmp(req.method, "GET") != 0 && strcmp(req.method, "HEAD") != 0)
+    {
+        status_code = 405;
+        send_error_page(client_socket, 405, "Method Not Allowed", &bytes_sent);
+        status_code = 405;
+        goto update_stats_and_log;
+    }
+
+    /* Security: Prevent Directory Traversal */
+    if (strstr(req.path, ".."))
+    {
+        status_code = 403;
+        send_error_page(client_socket, 403, "Forbidden", &bytes_sent);
+        status_code = 403;
+        goto update_stats_and_log;
+    }
+
+    /* Dashboard Stats Endpoint */
+    if (strcmp(req.path, "/stats") == 0)
+    {
+        sem_wait(&stats->mutex);
+        char json_body[1024];
+        snprintf(json_body, sizeof(json_body),
+            "{"
+            "\"active_connections\": %d,"
+            "\"total_requests\": %ld,"
+            "\"bytes_transferred\": %ld,"
+            "\"status_200\": %ld,"
+            "\"status_404\": %ld,"
+            "\"status_500\": %ld,"
+            "\"avg_response_time_ms\": %ld"
+            "}",
+            stats->active_connections,
+            stats->total_requests,
+            stats->bytes_transferred,
+            stats->status_200,
+            stats->status_404,
+            stats->status_500,
+            (stats->total_requests > 0) ? (stats->average_response_time / stats->total_requests) : 0
+        );
+        sem_post(&stats->mutex);
+
+        size_t len = strlen(json_body);
+        send_http_response(client_socket, 200, "OK", "application/json", json_body, len);
+        bytes_sent = len;
+        status_code = 200;
+        goto update_stats_and_log;
+    }
+
+    /* Range Request Support */
+    long range_start = -1;
+    long range_end = -1;
+    char *range_header = strstr(buffer, "Range: bytes=");
+    if (range_header) {
+        range_header += 13; /* Skip "Range: bytes=" */
+        char *dash = strchr(range_header, '-');
+        if (dash) {
+            *dash = '\0';
+            range_start = atol(range_header);
+            if (*(dash + 1) != '\r' && *(dash + 1) != '\n') {
+                range_end = atol(dash + 1);
+            }
+            *dash = '-'; /* Restore buffer */
+        }
+    }
+
+    /* Resolve Path with Virtual Host Support */
+    char full_path[2048];
+    char vhost_path[1024];
+    int vhost_found = 0;
+
+    /* Parse Host Header */
+    char *host_header = strstr(buffer, "Host: ");
+    if (host_header) {
+        host_header += 6; /* Skip "Host: " */
+        char *end = strchr(host_header, '\r');
+        if (!end) end = strchr(host_header, '\n');
+        if (end) {
+            char host[256];
+            size_t len = end - host_header;
+            if (len > 255) len = 255;
+            strncpy(host, host_header, len);
+            host[len] = '\0';
             
-            char response_header[512];
-            snprintf(response_header, sizeof(response_header),
-                     "HTTP/1.1 200 OK\r\n"
-                     "Content-Type: %s\r\n"
-                     "Content-Length: %zu\r\n"
-                     "Connection: close\r\n"
-                     "X-Cache: HIT\r\n"
-                     "\r\n",
-                     get_content_type(filepath), cached_entry->size);
-            
-            send(client_fd, response_header, strlen(response_header), 0);
-            send(client_fd, cached_entry->data, cached_entry->size, 0);
-            
-            update_cache_statistics(shared_data, 1);
-            cache_entry_release(cached_entry);
-            
-            return 0;
+            /* Remove port if present (e.g. localhost:8080 -> localhost) */
+            char *colon = strchr(host, ':');
+            if (colon) *colon = '\0';
+
+            /* Check if directory exists: www/host */
+            snprintf(vhost_path, sizeof(vhost_path), "%s/%s", config.document_root, host);
+            struct stat st_vhost;
+            if (stat(vhost_path, &st_vhost) == 0 && S_ISDIR(st_vhost.st_mode)) {
+                snprintf(full_path, sizeof(full_path), "%s%s", vhost_path, req.path);
+                vhost_found = 1;
+            }
+        }
+    }
+
+    if (!vhost_found) {
+        snprintf(full_path, sizeof(full_path), "%s%s", config.document_root, req.path);
+    }
+
+    /* Directory Handling (Serve index.html) */
+    struct stat st;
+    if (stat(full_path, &st) == 0 && S_ISDIR(st.st_mode))
+    {
+        strncat(full_path, "/index.html", sizeof(full_path) - strlen(full_path) - 1);
+    }
+
+    /* File Existence Check */
+    if (stat(full_path, &st) != 0) {
+        status_code = 404;
+        send_error_page(client_socket, 404, "Not Found", &bytes_sent);
+        goto update_stats_and_log;
+    }
+
+    long fsize = st.st_size;
+    char *content = NULL;
+    size_t read_bytes = 0;
+
+    /* * CACHING LOGIC
+     * Only cache files smaller than 1MB to preserve memory.
+     */
+    if (fsize > 0 && fsize < (1 * 1024 * 1024)) {
+        /* Try to retrieve from cache first */
+        if (cache_get(full_path, &content, &read_bytes) == 0) {
+            /* HIT: 'content' is now a malloc'd copy from the cache */
         } else {
-            /* Cache MISS */
-            log_cache_operation(worker_id, filepath, 0);
-            
-            FILE* file = fopen(full_path, "rb");
-            if (!file) return -1;
-            
-            char* file_data = malloc(file_stat.st_size);
-            if (!file_data) {
-                fclose(file);
-                return -1;
+            /* MISS: Read from disk */
+            FILE *fp = fopen(full_path, "rb");
+            if (!fp) {
+                status_code = 404;
+                send_error_page(client_socket, 404, "Not Found", &bytes_sent);
+                goto update_stats_and_log;
             }
-            
-            size_t bytes_read = fread(file_data, 1, file_stat.st_size, file);
-            fclose(file);
-            
-            if (bytes_read != file_stat.st_size) {
-                free(file_data);
-                return -1;
+            char *buf = malloc(fsize);
+            if (!buf) {
+                fclose(fp);
+                status_code = 500;
+                send_error_page(client_socket, 500, "Internal Server Error", &bytes_sent);
+                goto update_stats_and_log;
             }
+            size_t rb = fread(buf, 1, fsize, fp);
+            fclose(fp);
             
-            char response_header[512];
-            snprintf(response_header, sizeof(response_header),
-                     "HTTP/1.1 200 OK\r\n"
-                     "Content-Type: %s\r\n"
-                     "Content-Length: %zu\r\n"
-                     "Connection: close\r\n"
-                     "X-Cache: MISS\r\n"
-                     "\r\n",
-                     get_content_type(filepath), bytes_read);
-            
-            send(client_fd, response_header, strlen(response_header), 0);
-            send(client_fd, file_data, bytes_read, 0);
-            
-            cache_put(worker_cache, full_path, file_data, bytes_read);
-            update_cache_statistics(shared_data, 0);
-            
-            free(file_data);
-            return 0;
+            if (rb != (size_t)fsize) {
+                free(buf);
+                status_code = 500;
+                send_error_page(client_socket, 500, "Internal Server Error", &bytes_sent);
+                goto update_stats_and_log;
+            }
+            read_bytes = rb;
+            content = buf;
+
+            /* Update Cache (Best Effort) */
+            cache_put(full_path, content, read_bytes);
         }
     } else {
-        /* Arquivo grande, sem cache */
-        log_cache_operation(worker_id, filepath, -1);
-        return serve_file_direct(client_fd, full_path);
+        /* Large files: Direct Disk Read (No Caching) */
+        FILE *fp = fopen(full_path, "rb");
+        if (!fp) {
+            status_code = 404;
+            send_error_page(client_socket, 404, "Not Found", &bytes_sent);
+            goto update_stats_and_log;
+        }
+        char *buf = malloc(fsize);
+        if (!buf) {
+            fclose(fp);
+            status_code = 500;
+            send_error_page(client_socket, 500, "Internal Server Error", &bytes_sent);
+            goto update_stats_and_log;
+        }
+        size_t rb = fread(buf, 1, fsize, fp);
+        fclose(fp);
+        if (rb != (size_t)fsize) {
+            free(buf);
+            status_code = 500;
+            // ... send 500 ...
+            close(client_socket);
+            goto update_stats_and_log;
+        }
+        content = buf;
+        read_bytes = rb;
     }
+
+    /* Send Response */
+    const char *mime = get_mime_type(full_path);
+    
+    if (range_start != -1) {
+        /* Partial Content */
+        if (range_end == -1 || range_end >= fsize) range_end = fsize - 1;
+        long content_length = range_end - range_start + 1;
+        
+        status_code = 206;
+        
+        /* Construct Content-Range header */
+        char extra_headers[128];
+        snprintf(extra_headers, sizeof(extra_headers), "Content-Range: bytes %ld-%ld/%ld\r\n", range_start, range_end, fsize);
+        
+        /* Send Header */
+        char header[1024];
+        snprintf(header, sizeof(header), 
+            "HTTP/1.1 206 Partial Content\r\n"
+            "Content-Type: %s\r\n"
+            "Content-Length: %ld\r\n"
+            "%s"
+            "Connection: keep-alive\r\n"
+            "\r\n", mime, content_length, extra_headers);
+        send(client_socket, header, strlen(header), 0);
+        
+        /* Send Body */
+        if (!is_head) {
+            if (content) {
+                /* From Cache or Full Read */
+                send(client_socket, content + range_start, content_length, 0);
+            } else {
+                /* Direct Disk Read for Range */
+                /* Note: If we didn't read full file above, we need to re-open or seek. 
+                   For simplicity in this architecture, we assumed full read for small files.
+                   For large files (else block), we need to handle it. 
+                */
+                 /* Re-open for seek if content is NULL (Large file path) */
+                 FILE *fp = fopen(full_path, "rb");
+                 if (fp) {
+                     fseek(fp, range_start, SEEK_SET);
+                     char *chunk = malloc(content_length);
+                     if (chunk) {
+                         fread(chunk, 1, content_length, fp);
+                         send(client_socket, chunk, content_length, 0);
+                         free(chunk);
+                     }
+                     fclose(fp);
+                 }
+            }
+        }
+        bytes_sent = content_length;
+    }
+    else {
+        /* Normal 200 OK */
+        status_code = 200;
+        if (is_head)
+        {
+            send_http_response(client_socket, 200, "OK", mime, NULL, fsize);
+            bytes_sent = 0;
+        }
+        else
+        {
+            send_http_response(client_socket, 200, "OK", mime, content, fsize);
+            bytes_sent = fsize;
+        }
+    }
+
+    free(content);
+    /* close(client_socket); REMOVED for Keep-Alive */
+
+/* * Cleanup Label: Updates stats and logs the request. 
+ * Reached via goto from error handlers or normal completion.
+ */
+update_stats_and_log:
+    clock_gettime(CLOCK_MONOTONIC, &end_time);
+    long elapsed_ms = get_time_diff_ms(start_time, end_time);
+
+    /* Update Shared Stats (Critical Section) */
+    sem_wait(&stats->mutex);
+    /* stats->active_connections--; MOVED to end of connection */
+    stats->total_requests++;
+    stats->bytes_transferred += bytes_sent;
+    stats->average_response_time += elapsed_ms;
+
+    if (status_code == 200) stats->status_200++;
+    else if (status_code == 404) stats->status_404++;
+    else if (status_code == 500) stats->status_500++;
+    
+    sem_post(&stats->mutex);
+
+    /* Log Request (Apache Format) */
+    const char *log_method = (req.method[0] != '\0') ? req.method : "-";
+    const char *log_path = (req.path[0] != '\0') ? req.path : "-";
+    
+    log_request(&queue->log_mutex, client_ip, log_method, log_path, status_code, bytes_sent);
+
+    /* Check for Connection: close header to break loop */
+    /* Simple check: if request contained "Connection: close" (not implemented in parser yet, assuming keep-alive by default) */
+    /* For now, we rely on timeout or client closing. */
+    } /* End of while(1) */
+
+    close(client_socket);
+    sem_wait(&stats->mutex);
+    stats->active_connections--;
+    sem_post(&stats->mutex);
 }
 
-/* ADICIONADO: Processar requisição com logging */
-static void process_http_request_with_logging(int client_fd, 
-                                             server_config_t* config,
-                                             shared_data_t* shared_data,
-                                             semaphores_t* semaphores,
-                                             int worker_id,
-                                             struct sockaddr_in* client_addr) {
+/*
+ * Receive a File Descriptor via UNIX Domain Socket
+ * Purpose: Receives a file descriptor sent by another process. The kernel
+ * will automatically add the FD to this process's file table and return
+ * its new integer value via the ancillary data.
+ *
+ * Parameters:
+ * - socket: The UNIX domain socket to receive from.
+ *
+ * Return:
+ * - The new valid file descriptor on success.
+ * - -1 on failure (recvmsg error or no FD received).
+ */
+static int recv_fd(int socket)
+{
+    struct msghdr msg = {0};
+
+    /* Prepare buffer for the dummy byte */
+    char buf[1] = {0};
+    struct iovec io = {.iov_base = buf, .iov_len = 1};
+
+    /* Union for alignment of receiving buffer */
+    union
+    {
+        char buf[CMSG_SPACE(sizeof(int))];
+        struct cmsghdr align;
+    } u;
+
+    memset(&u, 0, sizeof(u));
+
+    msg.msg_iov = &io;
+    msg.msg_iovlen = 1;
+    msg.msg_control = u.buf;
+    msg.msg_controllen = sizeof(u.buf);
+
+    /* Perform the receive operation */
+    if (recvmsg(socket, &msg, 0) < 0)
+        return -1;
+
+    /* Extract the FD from the ancillary data */
+    struct cmsghdr *cmsg = CMSG_FIRSTHDR(&msg);
     
-    char buffer[4096];
-    ssize_t bytes_read;
-    
-    bytes_read = recv(client_fd, buffer, sizeof(buffer) - 1, 0);
-    if (bytes_read <= 0) {
-        close(client_fd);
-        return;
+    /* Verify we received the expected type of message (SCM_RIGHTS) */
+    if (cmsg && cmsg->cmsg_level == SOL_SOCKET && cmsg->cmsg_type == SCM_RIGHTS)
+    {
+        /* Return the file descriptor integer */
+        return *((int *)CMSG_DATA(cmsg));
     }
     
-    buffer[bytes_read] = '\0';
-    
-    /* Parsear requisição */
-    char method[16], path[256], protocol[16];
-    if (sscanf(buffer, "%15s %255s %15s", method, path, protocol) != 3) {
-        send_http_error(client_fd, 400, "Bad Request", config);
-        update_statistics(shared_data, semaphores, 400, 0);
-        return;
-    }
-    
-    /* Extrair User-Agent para logging */
-    char user_agent[256];
-    parse_http_headers(buffer, user_agent, sizeof(user_agent));
-    
-    /* Verificar método */
-    if (strcmp(method, "GET") != 0) {
-        send_http_error(client_fd, 501, "Not Implemented", config);
-        log_http_request(client_addr, method, path, protocol, 501, 0, user_agent);
-        update_statistics(shared_data, semaphores, 501, 0);
-        return;
-    }
-    
-    /* Proteção contra path traversal */
-    if (strstr(path, "..") != NULL) {
-        send_http_error(client_fd, 403, "Forbidden", config);
-        log_http_request(client_addr, method, path, protocol, 403, 0, user_agent);
-        update_statistics(shared_data, semaphores, 403, 0);
-        return;
-    }
-    
-    /* Servir index.html para raiz */
-    if (strcmp(path, "/") == 0) {
-        strcpy(path, "/index.html");
-    }
-    
-    const char* requested_file = path + 1;
-    
-    if (is_static_file(requested_file)) {
-        double start_time = get_time_ms();
-        
-        int result = serve_file_with_cache(client_fd, requested_file,
-                                          config->document_root,
-                                          shared_data, worker_id);
-        
-        double end_time = get_time_ms();
-        double response_time = end_time - start_time;
-        
-        size_t bytes_sent = 0;
-        
-        if (result == 0) {
-            /* Sucesso */
-            bytes_sent = strlen(requested_file) + 100; /* approx */
-            shared_stats_update_request(shared_data, 200, bytes_sent, response_time);
-            log_http_request(client_addr, method, path, protocol, 200, bytes_sent, user_agent);
-        } else {
-            /* Erro 404 */
-            send_http_error(client_fd, 404, "Not Found", config);
-            shared_stats_update_request(shared_data, 404, 0, response_time);
-            log_http_request(client_addr, method, path, protocol, 404, 0, user_agent);
-        }
-    } else {
-        /* Não é arquivo estático */
-        send_http_error(client_fd, 404, "Not Found", config);
-        update_statistics(shared_data, semaphores, 404, 0);
-        log_http_request(client_addr, method, path, protocol, 404, 0, user_agent);
-    }
+    return -1; /* Failed to receive a valid FD */
 }
 
-/* ==================== THREAD WORKER ==================== */
+/*
+ * Start Worker Process
+ * Purpose: This is the main entry point for a Worker process. It initializes 
+ * process-local resources (cache, thread pool, logger thread) and enters 
+ * a loop to receive client connections from the Master process.
+ *
+ * Parameters:
+ * - ipc_socket: The UNIX domain socket used to receive File Descriptors 
+ * from the Master process.
+ */
+void start_worker_process(int ipc_socket)
+{
+    printf("Worker (PID: %d) started\n", getpid());
 
-void* worker_thread_func(void* arg) {
-    worker_thread_arg_t* thread_arg = (worker_thread_arg_t*)arg;
-    thread_pool_t* pool = (thread_pool_t*)thread_arg->pool;
+    /* Initialize time zone information for logging */
+    tzset();
     
-    while (worker_running) {
-        pthread_mutex_lock(&pool->mutex);
-        
-        while (!pool->shutdown && pool->queue_count == 0) {
-            pthread_cond_wait(&pool->cond, &pool->mutex);
+    /* * Initialize shared queue structures. 
+     * Note: In this architecture, this primarily sets up the shared log_mutex 
+     * needed for thread-safe logging across processes.
+     */
+    init_shared_queue(config.max_queue_size);
+
+    /* * Start the Logger Flush Thread
+     * This background thread ensures logs are written to disk periodically 
+     * even if the buffer isn't full.
+     */
+    pthread_t flush_tid;
+    if (pthread_create(&flush_tid, NULL, logger_flush_thread, (void *)&queue->log_mutex) != 0) {
+        perror("Failed to create logger flush thread");
+    }
+
+    /* * Initialize Local Request Queue
+     * This queue acts as the buffer between the Worker process (Main Thread) 
+     * and its pool of worker threads.
+     */
+    local_queue_t local_q;
+    if (local_queue_init(&local_q, config.max_queue_size) != 0) {
+        perror("local_queue_init");
+    }
+    
+    /* * Initialize File Cache
+     * Sets up the in-memory LRU cache with the size defined in server.conf.
+     */
+    size_t cache_bytes = (size_t)config.cache_size_mb * 1024 * 1024;
+    if (cache_init(cache_bytes) != 0) {
+        perror("cache_init");
+    }
+
+    /* * Create Thread Pool
+     * Spawns a fixed number of threads (consumer) that will block waiting 
+     * for work on the local_q.
+     */
+    int thread_count = config.threads_per_worker > 0 ? config.threads_per_worker : 0;
+    pthread_t *threads = NULL;
+    if (thread_count > 0) {
+        threads = malloc(sizeof(pthread_t) * thread_count);
+        if (!threads) {
+            perror("Failed to allocate worker threads array");
+            thread_count = 0;
         }
-        
-        if (pool->shutdown) {
-            pthread_mutex_unlock(&pool->mutex);
+    }
+
+    int created = 0;
+    for (int i = 0; i < thread_count; i++) {
+        if (pthread_create(&threads[i], NULL, worker_thread, &local_q) != 0) {
+            perror("pthread_create");
             break;
         }
-        
-        if (pool->queue_count > 0) {
-            int client_fd = pool->queue[pool->queue_front];
-            pool->queue_front = (pool->queue_front + 1) % pool->queue_size;
-            pool->queue_count--;
-            pthread_mutex_unlock(&pool->mutex);
+        created++;
+    }
+
+    /* * Main Loop: Receive and Dispatch
+     * 1. Block waiting for a File Descriptor from Master (IPC).
+     * 2. Enqueue the FD into the local thread pool queue.
+     */
+    while (1)
+    {
+        int client_fd = recv_fd(ipc_socket);
+        if (client_fd < 0) {
+            /* IPC socket closed or error — begin shutdown sequence */
+            break;
+        }
+
+        /* * Dispatch to Thread Pool
+         * Try to add the client FD to the local queue. If the queue is full,
+         * we reject the request immediately with 503 to prevent overload.
+         */
+        if (local_queue_enqueue(&local_q, client_fd) != 0) {
+            fprintf(stderr, "[Worker %d] Queue full! Rejecting client.\n", getpid());
             
-            /* Obter endereço do cliente */
-            struct sockaddr_in client_addr;
-            socklen_t addr_len = sizeof(client_addr);
-            getpeername(client_fd, (struct sockaddr*)&client_addr, &addr_len);
-            
-            double start_time = get_time_ms();
-            
-            /* Processar com logging */
-            process_http_request_with_logging(client_fd, thread_arg->config,
-                                            thread_arg->shared_data,
-                                            thread_arg->semaphores,
-                                            thread_arg->worker_id,
-                                            &client_addr);
-            
-            double end_time = get_time_ms();
-            double response_time = end_time - start_time;
-            
+            long bytes_sent = 0;
+            send_error_page(client_fd, 503, "Service Unavailable", &bytes_sent);
+
             close(client_fd);
-            
-        } else {
-            pthread_mutex_unlock(&pool->mutex);
         }
     }
-    
-    return NULL;
-}
 
-/* ==================== FUNÇÕES DE ESTATÍSTICAS ==================== */
+    /* * === Graceful Shutdown Sequence === 
+     */
 
-void update_statistics(shared_data_t* data, semaphores_t* sems, 
-                       int status_code, size_t bytes) {
-    shared_stats_update_request(data, status_code, bytes, 0.0);
-}
+    /* 1. Signal Worker Threads to Stop */
+    /* Acquire lock to ensure condition broadcast is not missed by threads */
+    pthread_mutex_lock(&local_q.mutex); 
+    local_q.shutting_down = 1;
+    pthread_cond_broadcast(&local_q.cond);
+    pthread_mutex_unlock(&local_q.mutex);
 
-void update_cache_statistics(shared_data_t* data, int cache_hit) {
-    if (!data) return;
-    shared_stats_update_cache(data, cache_hit);
-}
+    /* 2. Stop Logger Thread */
+    logger_request_shutdown();
+    pthread_join(flush_tid, NULL);
 
-void update_error_statistics(shared_data_t* data) {
-    if (!data) return;
-    shared_stats_update_error(data);
-}
-
-/* ==================== FUNÇÃO PRINCIPAL DO WORKER ==================== */
-
-void worker_main(int worker_id, shared_data_t* shared_data, 
-                 semaphores_t* semaphores, server_config_t* config) {
-    
-    /* Configurar handlers de sinal */
-    signal(SIGINT, worker_signal_handler);
-    signal(SIGTERM, worker_signal_handler);
-    
-    printf("Worker %d started (PID: %d)\n", worker_id, getpid());
-    
-    /* Inicializar subsistemas */
-    worker_cache_init(worker_id);
-    worker_logger_init(worker_id);  /* ADICIONADO */
-    
-    /* Inicializar thread pool */
-    thread_pool_t pool;
-    thread_pool_init(&pool, config->threads_per_worker, config->max_queue_size);
-    
-    /* Criar argumentos para threads */
-    worker_thread_arg_t thread_arg;
-    thread_arg.worker_id = worker_id;
-    thread_arg.shared_data = shared_data;
-    thread_arg.semaphores = semaphores;
-    thread_arg.config = config;
-    thread_arg.pool = &pool;
-    
-    /* Criar threads worker */
-    pthread_t* threads = malloc(sizeof(pthread_t) * config->threads_per_worker);
-    if (!threads) {
-        perror("malloc");
-        thread_pool_destroy(&pool);
-        worker_cache_cleanup(worker_id);
-        worker_logger_cleanup(worker_id);
-        return;
-    }
-    
-    for (int i = 0; i < config->threads_per_worker; i++) {
-        if (pthread_create(&threads[i], NULL, worker_thread_func, &thread_arg) != 0) {
-            perror("pthread_create");
-            
-            for (int j = 0; j < i; j++) {
-                pthread_join(threads[j], NULL);
-            }
-            
-            free(threads);
-            thread_pool_destroy(&pool);
-            worker_cache_cleanup(worker_id);
-            worker_logger_cleanup(worker_id);
-            return;
-        }
-    }
-    
-    /* Timers para estatísticas */
-    time_t last_stat_display = time(NULL);
-    time_t last_logger_stat = time(NULL);
-    int stats_interval = 60;
-    int logger_stats_interval = 30;
-    
-    /* Loop principal */
-    while (worker_running) {
-        int client_fd = dequeue_connection(shared_data, semaphores);
-        
-        if (client_fd >= 0) {
-            pthread_mutex_lock(&pool.mutex);
-            
-            if (pool.queue_count < pool.queue_size) {
-                pool.queue[pool.queue_rear] = client_fd;
-                pool.queue_rear = (pool.queue_rear + 1) % pool.queue_size;
-                pool.queue_count++;
-                pthread_cond_signal(&pool.cond);
-            } else {
-                /* Fila cheia - erro 503 */
-                send_http_error(client_fd, 503, "Service Unavailable", config);
-                
-                /* Log do erro */
-                struct sockaddr_in client_addr;
-                socklen_t addr_len = sizeof(client_addr);
-                getpeername(client_fd, (struct sockaddr*)&client_addr, &addr_len);
-                
-                char remote_addr[INET_ADDRSTRLEN];
-                inet_ntop(AF_INET, &(client_addr.sin_addr), remote_addr, INET_ADDRSTRLEN);
-                
-                if (worker_logger) {
-                    logger_log(worker_logger, LOG_LEVEL_ERROR, remote_addr, "-",
-                              "GET", "/", "HTTP/1.1", 503, 0, "-", "-");
-                }
-                
-                update_error_statistics(shared_data);
-                close(client_fd);
-            }
-            
-            pthread_mutex_unlock(&pool.mutex);
-        } else if (client_fd == -1 && errno == EINTR) {
-            continue;
-        } else {
-            usleep(10000);
-        }
-        
-        /* Mostrar estatísticas periódicas */
-        time_t now = time(NULL);
-        
-        if (difftime(now, last_stat_display) >= stats_interval) {
-            printf("\n[Worker %d] Statistics:\n", worker_id);
-            printf("  Thread pool queue: %d/%d\n", pool.queue_count, pool.queue_size);
-            printf("  Shared queue: %d/%d\n", shared_data->queue.size, shared_data->queue.capacity);
-            last_stat_display = now;
-        }
-        
-        if (difftime(now, last_logger_stat) >= logger_stats_interval) {
-            if (worker_logger) {
-                printf("\n[Worker %d] Logger stats:\n", worker_id);
-                printf("  Buffer entries: %zu\n", logger_get_buffer_count(worker_logger));
-                printf("  File size: %.2f MB\n", logger_get_file_size(worker_logger) / (1024.0 * 1024.0));
-                
-                /* Forçar flush periódico */
-                logger_flush(worker_logger);
-            }
-            last_logger_stat = now;
-        }
-    }
-    
-    /* Shutdown */
-    printf("Worker %d shutting down...\n", worker_id);
-    thread_pool_shutdown(&pool);
-    
-    for (int i = 0; i < config->threads_per_worker; i++) {
+    /* 3. Join Worker Threads */
+    for (int i = 0; i < created; i++) {
         pthread_join(threads[i], NULL);
     }
-    
-    free(threads);
-    thread_pool_destroy(&pool);
-    
-    /* Limpar recursos */
-    worker_cache_cleanup(worker_id);
-    worker_logger_cleanup(worker_id);  /* ADICIONADO */
-    
-    printf("Worker %d exited\n", worker_id);
-}
 
-/* ==================== FUNÇÕES AUXILIARES ==================== */
-
-void log_cache_operation(int worker_id, const char* filename, int cache_hit) {
-    const char* status = (cache_hit == 1) ? "HIT" : 
-                        (cache_hit == 0) ? "MISS" : "BYPASS";
-    printf("[Worker %d] Cache %s: %s\n", worker_id, status, filename);
-}
-
-void log_operation_time(int worker_id, const char* operation, 
-                       double start_time_ms, double end_time_ms) {
-    double duration_ms = end_time_ms - start_time_ms;
-    if (duration_ms > 100.0) {
-        printf("[Worker %d] Slow %s: %.2f ms\n", worker_id, operation, duration_ms);
-    }
+    /* 4. Cleanup Resources */
+    if (threads) free(threads);
+    local_queue_destroy(&local_q);
+    cache_destroy();
+    
+    close(ipc_socket);
 }

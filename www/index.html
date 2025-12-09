@@ -1,106 +1,49 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Multithreaded Multiprocess Webserver</title>
+    <title>High-Performance Web Server</title>
     <link rel="stylesheet" href="style.css">
 </head>
+
 <body>
+
+    <header>
+        <div class="logo">ConcurrentHTTP v1.0</div>
+    </header>
+
     <div class="container">
-        <div class="main-card">
-            <header class="text-center mb-5">
-                <h1 class="main-title">MULTITHREADED MULTIPROCESS WEBSERVER</h1>
-                <p class="subtitle">Concurrent HTTP Server • OS 2025</p>
-            </header>
+        <div class="hero">
+            <h1>Server is Operational</h1>
+            <p>If you see this page, your multi-threaded server architecture is functioning correctly.</p>
+            <div class="badge">Status: Online</div>
+        </div>
 
-            <!-- Server Status -->
-            <div class="server-status-card mb-4">
-                <h3 class="section-title">Server Status</h3>
-                <div class="status-grid">
-                    <div class="status-item">
-                        <span class="label">Port</span>
-                        <span class="value">8080</span>
-                    </div>
-                    <div class="status-item">
-                        <span class="label">Protocol</span>
-                        <span class="value">HTTP/1.1</span>
-                    </div>
-                    <div class="status-item">
-                        <span class="label">Status</span>
-                        <span class="status-active pulse">● Running</span>
-                    </div>
-                    <div class="status-item">
-                        <span class="label">Requests</span>
-                        <span class="value" id="requestCount">0</span>
-                    </div>
-                </div>
+        <div class="grid">
+            <div class="card">
+                <h3>Architecture</h3>
+                <p>Multi-Process Master/Worker model with Thread Pools.</p>
             </div>
-
-            <!-- Quick Tests -->
-            <div class="quick-tests mb-4">
-                <h3 class="section-title">Quick Tests</h3>
-                <div class="test-grid">
-                    <button class="test-btn" onclick="testFile('index.html')">HTML</button>
-                    <button class="test-btn" onclick="testFile('style.css')">CSS</button>
-                    <button class="test-btn" onclick="testFile('api/data.json')">JSON</button>
-                    <button class="test-btn" onclick="testFile('images/logo.png')">Image</button>
-                    <button class="test-btn" onclick="testFile('errors/400.html')">400 Error</button>
-                    <button class="test-btn" onclick="testFile('errors/500.html')">500 Error</button>
-                </div>
+            <div class="card">
+                <h3>Performance</h3>
+                <p>High throughput handling for concurrent connections.</p>
             </div>
-
-            <!-- Search -->
-            <div class="search-section mb-4">
-                <h3 class="section-title">Test Any Path</h3>
-                <div class="search-box">
-                    <input type="text" id="searchInput" 
-                           placeholder="Enter path (e.g., /api/stats or /images/logo.png)"
-                           class="search-input"
-                           onkeypress="if(event.key === 'Enter') performSearch()">
-                    <button class="search-btn" onclick="performSearch()">Test</button>
-                </div>
+            <div class="card">
+                <h3>Interactivity Test</h3>
+                <p>Test client-side execution latency.</p>
+                <button onclick="testLatency()">Ping Server (JS Test)</button>
+                <div id="ping-result" class="result">Waiting for input...</div>
             </div>
-
-            <!-- Results -->
-            <div class="results-section">
-                <div class="results-header">
-                    <h3 class="section-title">Test Results</h3>
-                    <button class="clear-btn" onclick="clearResults()">Clear</button>
-                </div>
-                <div class="results-list" id="resultsList">
-                    <!-- Results will be added here -->
-                </div>
-            </div>
-
-            <!-- Footer -->
-            <footer class="footer">
-                <div class="features">
-                    <span class="feature-tag">Process Pool</span>
-                    <span class="feature-tag">Thread Pool</span>
-                    <span class="feature-tag">Cache System</span>
-                    <span class="feature-tag">Logging</span>
-                    <span class="feature-tag">Statistics</span>
-                </div>
-                <div class="timestamp" id="timestamp"></div>
-            </footer>
         </div>
     </div>
 
-    <!-- Error Modal -->
-    <div class="modal" id="errorModal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3>Error</h3>
-                <button class="close-btn" onclick="closeModal()">&times;</button>
-            </div>
-            <div class="modal-body" id="modalMessage"></div>
-            <div class="modal-footer">
-                <button class="modal-btn" onclick="closeModal()">Close</button>
-            </div>
-        </div>
-    </div>
+    <footer>
+        &copy; 2025 University of Aveiro - Operating Systems Project
+    </footer>
 
     <script src="script.js"></script>
 </body>
+
 </html>

@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Server Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f0f2f5;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        .card h3 {
+            margin: 0 0 10px;
+            color: #666;
+            font-size: 14px;
+            text-transform: uppercase;
+        }
+
+        .card .value {
+            font-size: 36px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+
+        .chart-container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            height: 400px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>🚀 Server Live Dashboard</h1>
+
+        <div class="grid">
+            <div class="card">
+                <h3>Active Connections</h3>
+                <div class="value" id="active_conn">0</div>
+            </div>
+            <div class="card">
+                <h3>Total Requests</h3>
+                <div class="value" id="total_req">0</div>
+            </div>
+            <div class="card">
+                <h3>Data Transferred</h3>
+                <div class="value" id="bytes_transferred">0 MB</div>
+            </div>
+            <div class="card">
+                <h3>Avg Response Time</h3>
+                <div class="value" id="avg_time">0 ms</div>
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <canvas id="requestsChart"></canvas>
+        </div>
+    </div>
+
+    <script>
+        const ctx = document.getElementById('requestsChart').getContext('2d');
+        const chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Requests per Second',
+                    data: [],
+                    borderColor: '#3498db',
+                    tension: 0.4,
+                    fill: true,
+                    backgroundColor: 'rgba(52, 152, 219, 0.1)'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: { beginAtZero: true }
+                },
+                animation: false
+            }
+        });
+
+        let lastTotalRequests = 0;
+        let lastTime = Date.now();
+
+        async function updateStats() {
+            try {
+                const response = await fetch('/stats');
+                const data = await response.json();
+
+                document.getElementById('active_conn').textContent = data.active_connections;
+                document.getElementById('total_req').textContent = data.total_requests.toLocaleString();
+                document.getElementById('bytes_transferred').textContent = (data.bytes_transferred / (1024 * 1024)).toFixed(2) + ' MB';
+                document.getElementById('avg_time').textContent = data.avg_response_time_ms + ' ms';
+
+                // Calculate RPS
+                const now = Date.now();
+                const timeDiff = (now - lastTime) / 1000;
+                if (timeDiff >= 1) {
+                    const rps = (data.total_requests - lastTotalRequests) / timeDiff;
+
+                    const timeLabel = new Date().toLocaleTimeString();
+                    if (chart.data.labels.length > 20) {
+                        chart.data.labels.shift();
+                        chart.data.datasets[0].data.shift();
+                    }
+                    chart.data.labels.push(timeLabel);
+                    chart.data.datasets[0].data.push(rps);
+                    chart.update();
+
+                    lastTotalRequests = data.total_requests;
+                    lastTime = now;
+                }
+
+            } catch (e) {
+                console.error("Failed to fetch stats", e);
+            }
+        }
+
+        setInterval(updateStats, 1000);
+        updateStats();
+    </script>
+</body>
+
+</html>

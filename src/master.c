@@ -1,187 +1,225 @@
-#include "master.h"
-#include "shared_mem.h"  /* ADICIONAR */
-#include <stdio.h>
-#include <stdlib.h>
+#define _XOPEN_SOURCE 700
+
+#include "master.h"    
+#include "shared_mem.h"
+#include "config.h"
+#include <sys/uio.h>
 #include <string.h>
-#include <unistd.h>
+#include "worker.h"  
+#include "stats.h"
+#include "thread_pool.h"
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <arpa/inet.h>
-#include <time.h>
-#include <errno.h>
-#include <fcntl.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <sys/wait.h>
+#include <pthread.h> 
 #include <signal.h>
+#include <errno.h>
 
-/* Definir constantes se não definidas no header */
-#ifndef MAX_QUEUE_SIZE
-#define MAX_QUEUE_SIZE 100
-#endif
+/* Access global configuration loaded in main.c */
+extern server_config_t config;
 
-volatile sig_atomic_t master_running = 1;
+/*
+ * Global Control Flag
+ * Purpose: Controls the main accept loop.
+ * Type: volatile sig_atomic_t ensures atomic access during signal handling.
+ */
+static volatile sig_atomic_t server_running = 1;
 
-void master_signal_handler(int signum) {
-    master_running = 0;
-    printf("Received signal %d, shutting down...\n", signum);
+/*
+ * Signal Handler for SIGINT (Ctrl+C)
+ * Purpose: Catches the interrupt signal and sets the flag to stop the 
+ * main loop. This allows the server to break the accept() blocking call 
+ * and proceed to the cleanup phase.
+ */
+void handle_sigint(int sig) {
+    (void)sig; /* Mark unused parameter */
+    server_running = 0; 
 }
 
-int create_server_socket(int port) {
-    int sockfd = socket(AF_INET, SOCK_STREAM, 0);
-    if (sockfd < 0) {
-        perror("socket");
-        return -1;
-    }
+/*
+ * Send a File Descriptor via UNIX Domain Socket
+ * Purpose: Transmits an open file descriptor from the current process to another
+ * process. This is required because file descriptors are process-local integers;
+ * simply passing the integer value (e.g., '5') to another process is invalid.
+ * We must use SCM_RIGHTS (Socket Control Message) to instruct the kernel to
+ * duplicate the FD into the receiving process's file table.
+ *
+ * Parameters:
+ * - socket: The UNIX domain socket (IPC channel) to send through.
+ * - fd_to_send: The file descriptor to transfer.
+ *
+ * Return:
+ * - Number of bytes sent on success (usually 1).
+ * - -1 on failure.
+ */
+static int send_fd(int socket, int fd_to_send)
+{
+    struct msghdr msg = {0};
+
+    /* Dummy data buffer. sendmsg requires at least one byte of real data
+     * to be sent along with the ancillary (control) data.
+     */
+    char buf[1] = {0}; 
+    struct iovec io = {.iov_base = buf, .iov_len = 1};
+
+    /* Union ensures proper memory alignment for the control message buffer */
+    union
+    {
+        char buf[CMSG_SPACE(sizeof(int))]; /* Buffer big enough for one int FD */
+        struct cmsghdr align;              /* Enforce alignment */
+    } u;
     
-    /* Set socket options */
+    /* Zero out the control buffer to prevent garbage data */
+    memset(&u, 0, sizeof(u)); 
+
+    /* Setup message header */
+    msg.msg_iov = &io;          /* Point to dummy data */
+    msg.msg_iovlen = 1;         /* Number of I/O vectors */
+    msg.msg_control = u.buf;    /* Point to control buffer */
+    msg.msg_controllen = sizeof(u.buf); /* Size of control buffer */
+
+    /* Configure the Ancillary Data (Control Message) Header */
+    struct cmsghdr *cmsg = CMSG_FIRSTHDR(&msg);
+    cmsg->cmsg_level = SOL_SOCKET;  /* Socket-level protocol */
+    cmsg->cmsg_type = SCM_RIGHTS;   /* We are sending access rights (FDs) */
+    cmsg->cmsg_len = CMSG_LEN(sizeof(int)); /* Length of data + header */
+
+    /* Copy the file descriptor into the data portion of the control message */
+    *((int *)CMSG_DATA(cmsg)) = fd_to_send;
+
+    return sendmsg(socket, &msg, 0);
+}
+
+/*
+ * Start Master Server Logic
+ * Purpose: Initializes the server socket, spawns worker processes, and 
+ * enters the main loop to accept and distribute connections.
+ *
+ * Return:
+ * - 0 on clean shutdown.
+ * - Non-zero on fatal errors (e.g., socket failure).
+ */
+int start_master_server()
+{
+    /* 1. Setup Signal Handling */
+    struct sigaction sa;
+    sa.sa_handler = handle_sigint;
+    sigemptyset(&sa.sa_mask);
+    sa.sa_flags = 0; /* No SA_RESTART: we want accept() to be interrupted */
+    sigaction(SIGINT, &sa, NULL);
+
+    /* 2. Create Server Socket */
+    int server_socket = socket(AF_INET, SOCK_STREAM, 0);
     int opt = 1;
-    if (setsockopt(sockfd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
-        perror("setsockopt");
-        close(sockfd);
-        return -1;
-    }
-    
-    /* Bind to port */
-    struct sockaddr_in addr;
-    memset(&addr, 0, sizeof(addr));
-    addr.sin_family = AF_INET;
-    addr.sin_addr.s_addr = INADDR_ANY;
-    addr.sin_port = htons(port);
-    
-    if (bind(sockfd, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
-        perror("bind");
-        close(sockfd);
-        return -1;
-    }
-    
-    /* Listen for connections */
-    if (listen(sockfd, 128) < 0) {
-        perror("listen");
-        close(sockfd);
-        return -1;
-    }
-    
-    printf("Server listening on port %d\n", port);
-    return sockfd;
-}
+    /* Allow immediate reuse of the port after server restart */
+    setsockopt(server_socket, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
 
-void enqueue_connection(shared_data_t* data, semaphores_t* sems, int client_fd) {
-    /* Usar semáforos para sincronização */
-    if (sem_wait(sems->empty_slots) == -1) {
-        perror("sem_wait empty_slots");
-        close(client_fd);
-        return;
-    }
-    
-    if (sem_wait(sems->queue_mutex) == -1) {
-        sem_post(sems->empty_slots);
-        perror("sem_wait queue_mutex");
-        close(client_fd);
-        return;
-    }
-    
-    /* Usar função sincronizada de enfileiramento */
-    if (shared_queue_enqueue(&data->queue, client_fd) == 0) {
-        printf("Enqueued connection (fd: %d), queue size: %d\n", 
-               client_fd, data->queue.size);
-    } else {
-        /* Fila cheia (não deve acontecer devido aos semáforos) */
-        close(client_fd);
-        printf("Queue full, rejected connection (fd: %d)\n", client_fd);
-    }
-    
-    /* Atualizar estatísticas - nova conexão */
-    shared_stats_update_connection(data, 1); /* 1 = nova conexão */
-    
-    sem_post(sems->queue_mutex);
-    sem_post(sems->filled_slots);
-}
+    struct sockaddr_in address;
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = INADDR_ANY; /* Listen on all interfaces */
+    address.sin_port = htons(config.port); 
 
-void display_statistics(shared_data_t* data, semaphores_t* sems) {
-    /* Exibir estatísticas usando a função do stats.c */
-    printf("\n");
-    shared_memory_print_stats(data);
+    if (bind(server_socket, (struct sockaddr *)&address, sizeof(address)) < 0) {
+        perror("bind failed");
+        return 1;
+    }
     
-    /* Mostrar também status da fila */
-    printf("\nQueue Status: %d/%d connections waiting\n", 
-           data->queue.size, data->queue.capacity);
-    printf("=============================================\n\n");
-}
+    /* Listen with a backlog of 128 pending connections */
+    listen(server_socket, 128);
 
-void master_main(shared_data_t* data, semaphores_t* sems, server_config_t* config) {
-    /* Versão simplificada com signal() */
-    if (signal(SIGINT, master_signal_handler) == SIG_ERR) {
-        perror("signal SIGINT");
+    printf("Master (PID: %d) listening on port %d.\n", getpid(), config.port);
+
+    /* 3. Start Statistics Monitor Thread
+     * This runs in the background to print server metrics periodically.
+     */
+    pthread_t stats_tid;
+    pthread_create(&stats_tid, NULL, stats_monitor_thread, NULL);
+
+    /* 4. Fork Worker Processes */
+    int *worker_pipes = malloc(sizeof(int) * config.num_workers);
+    for (int i = 0; i < config.num_workers; i++)
+    {
+        /* Create a UNIX domain socket pair for passing File Descriptors */
+        int sv[2]; 
+        if (socketpair(AF_UNIX, SOCK_STREAM, 0, sv) < 0) {
+            perror("socketpair");
+            exit(1);
+        }
+
+        pid_t pid = fork();
+        if (pid == 0) {
+            /* === CHILD PROCESS (WORKER) === */
+            close(server_socket); /* Child does not accept connections */
+            close(sv[0]);         /* Close Master's end of the pipe */
+            
+            /* Ignore SIGINT: Workers wait for pipe EOF to shutdown gracefully.
+             * This prevents workers from dying mid-request when Ctrl+C is pressed.
+             */
+            signal(SIGINT, SIG_IGN); 
+            
+            start_worker_process(sv[1]); /* Enter Worker Logic */
+            exit(0);
+        }
+        
+        /* === PARENT PROCESS (MASTER) === */
+        close(sv[1]); /* Close Worker's end */
+        worker_pipes[i] = sv[0]; /* Store Master's end */
     }
+
+    /* 5. Main Loop: Accept and Distribute */
+    int current_worker = 0;
     
-    if (signal(SIGTERM, master_signal_handler) == SIG_ERR) {
-        perror("signal SIGTERM");
-    }
-    
-    /* Create server socket */
-    int server_fd = create_server_socket(config->port);
-    if (server_fd < 0) {
-        fprintf(stderr, "Failed to create server socket\n");
-        return;
-    }
-    
-    /* Set socket to non-blocking */
-    int flags = fcntl(server_fd, F_GETFL, 0);
-    if (flags == -1) {
-        perror("fcntl F_GETFL");
-        close(server_fd);
-        return;
-    }
-    
-    if (fcntl(server_fd, F_SETFL, flags | O_NONBLOCK) == -1) {
-        perror("fcntl F_SETFL");
-        close(server_fd);
-        return;
-    }
-    
-    printf("Master process ready (PID: %d)\n", getpid());
-    printf("Press Ctrl+C to stop the server\n\n");
-    
-    time_t last_stat_display = time(NULL);
-    
-    /* Main accept loop */
-    while (master_running) {
+    while (server_running) {
         struct sockaddr_in client_addr;
         socklen_t client_len = sizeof(client_addr);
+
+        /* Blocking call - waits for a client */
+        int client_fd = accept(server_socket, (struct sockaddr *)&client_addr, &client_len);
         
-        int client_fd = accept(server_fd, (struct sockaddr*)&client_addr, &client_len);
-        
-        if (client_fd >= 0) {
-            char client_ip[INET_ADDRSTRLEN];
-            inet_ntop(AF_INET, &client_addr.sin_addr, client_ip, sizeof(client_ip));
-            printf("Accepted connection from %s:%d\n", 
-                   client_ip, ntohs(client_addr.sin_port));
-            
-            enqueue_connection(data, sems, client_fd);
-        } else if (errno != EAGAIN && errno != EWOULDBLOCK) {
+        /* Check if accept failed due to signal interruption (Ctrl+C) */
+        if (client_fd < 0) {
+            if (errno == EINTR) continue; /* Loop back to check server_running */
             perror("accept");
-            break;
+            continue;
         }
+
+        /* * Distribute connection to a worker via IPC (Round-Robin).
+         * We send the File Descriptor itself using SCM_RIGHTS.
+         */
+        send_fd(worker_pipes[current_worker], client_fd);
         
-        /* Display statistics every 30 seconds */
-        time_t now = time(NULL);
-        if (difftime(now, last_stat_display) >= 30.0) {
-            display_statistics(data, sems);
-            last_stat_display = now;
-        }
-        
-        usleep(10000); /* 10ms */
+        /* * CRITICAL: Master must close the FD.
+         * The worker now has a copy. If Master doesn't close it, the socket
+         * will remain open until the Master process exits.
+         */
+        close(client_fd);
+        current_worker = (current_worker + 1) % config.num_workers;
     }
-    
-    /* Cleanup */
-    printf("\nMaster process shutting down...\n");
-    
-    /* Mostrar estatísticas finais */
-    printf("\n=== FINAL STATISTICS ===\n");
-    shared_memory_print_stats(data);
-    
-    shutdown(server_fd, SHUT_RDWR);
-    close(server_fd);
-    
-    sleep(2);
-    
-    printf("Master process terminated\n");
+
+    /* 6. Shutdown Sequence */
+    printf("\nShutting down server...\n");
+
+    /* Close pipes to signal EOF to workers */
+    for (int i = 0; i < config.num_workers; i++) {
+        close(worker_pipes[i]);
+    }
+
+    /* Wait for all workers to finish their cleanup */
+    while (wait(NULL) > 0);
+
+    /* * Cancel and join the stats thread to ensure no memory is lost.
+     * Use pthread_cancel because the thread is sleeping (sleep(30)).
+     */
+    pthread_cancel(stats_tid);
+    pthread_join(stats_tid, NULL);
+
+    /* Final cleanup */
+    free(worker_pipes);
+    close(server_socket);
+
+    printf("Server stopped cleanly.\n");
+    return 0;
 }

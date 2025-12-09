@@ -19,16 +19,14 @@ $(OBJDIR):
 	mkdir -p $(OBJDIR)
 
 clean:
-	rm -rf $(OBJDIR) $(TARGET) *.log *.out www/access.log*
+	rm -rf $(OBJDIR) $(TARGET) tests/test_concurrent *.log *.out www/access.log*
 
 run: $(TARGET)
 	./$(TARGET)
 
 test: $(TARGET)
-	@echo "Running basic tests..."
-	@curl -s http://localhost:8080/ > /dev/null && echo "✓ Server responding" || echo "✗ Server not responding"
-	@curl -s -I http://localhost:8080/ | grep -q "HTTP/1.1 200" && echo "✓ GET request works" || echo "✗ GET request failed"
-	@curl -s http://localhost:8080/nonexistent.html 2>/dev/null | grep -q "404" && echo "✓ 404 error handling works" || echo "✗ 404 error handling failed"
+	@chmod +x tests/test_load.sh
+	@./tests/test_load.sh
 
 valgrind: $(TARGET)
 	valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes ./$(TARGET)
@@ -48,4 +46,7 @@ install_deps:
 	sudo apt-get update
 	sudo apt-get install -y build-essential gcc make valgrind apache2-utils curl
 
-.PHONY: all clean run test valgrind helgrind benchmark install_deps
+test_concurrent: tests/test_concurrent.c
+	$(CC) $(CFLAGS) -o tests/test_concurrent tests/test_concurrent.c
+
+.PHONY: all clean run test valgrind helgrind benchmark install_deps test_concurrent

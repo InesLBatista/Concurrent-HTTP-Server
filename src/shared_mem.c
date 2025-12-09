@@ -1,192 +1,189 @@
 #include "shared_mem.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
-#include <sys/mman.h>
-#include <fcntl.h>
 #include <unistd.h>
 #include <errno.h>
+#include <sys/mman.h>
+#include <sys/stat.h>        
+#include <fcntl.h>           
 
-/* Criar memória compartilhada */
-shared_data_t *shared_memory_create(size_t queue_size) {
-    size_t shm_size = sizeof(shared_data_t);
-    
-    /* Criar segmento de memória compartilhada */
-    int shm_fd = shm_open("/httpserver_shm", O_CREAT | O_RDWR, 0644);
-    if (shm_fd == -1) {
-        perror("shm_open");
-        return NULL;
+/* Global pointers to shared memory regions */
+connection_queue_t *queue = NULL;
+server_stats_t *stats = NULL;
+
+/*
+ * Initialize Shared Connection Queue
+ * Purpose: Allocates a shared memory block to hold the connection queue structure
+ * and the actual array of file descriptors. It also initializes the synchronization
+ * primitives (mutexes and semaphores) required for safe concurrent access.
+ *
+ * Parameters:
+ * - max_queue_size: The capacity of the circular buffer.
+ *
+ * Logic:
+ * 1. Calculates total size: struct size + (int size * max elements).
+ * 2. Uses mmap with MAP_SHARED | MAP_ANONYMOUS to create a shared region reachable
+ * by child processes (forked after this call).
+ * 3. Initializes PTHREAD_PROCESS_SHARED mutexes so they work across process boundaries.
+ */
+void init_shared_queue(int max_queue_size)
+{
+    /* Calculate memory requirements */
+    size_t queue_data_size = sizeof(int) * max_queue_size;
+    size_t total_size = sizeof(connection_queue_t) + queue_data_size;
+
+    /* Allocate shared memory */
+    void *mem_block = mmap(NULL, total_size, 
+                           PROT_READ | PROT_WRITE, 
+                           MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+
+    if (mem_block == MAP_FAILED) {
+        perror("mmap failed");
+        exit(1);
+    }
+
+    queue = (connection_queue_t *)mem_block;
+
+    /* Point the data array to the memory immediately following the struct */
+    queue->connections = (int *)(queue + 1);
+
+    /* Initialize circular buffer indices */
+    queue->head = 0;
+    queue->tail = 0;
+    queue->max_size = max_queue_size;
+    queue->shutting_down = 0;
+
+    /* Initialize Process-Shared Mutex for the Queue */
+    pthread_mutexattr_t mutex_attr;
+    pthread_mutexattr_init(&mutex_attr);
+    pthread_mutexattr_setpshared(&mutex_attr, PTHREAD_PROCESS_SHARED);
+
+    if (pthread_mutex_init(&queue->mutex, &mutex_attr) != 0) {
+        perror("mutex init");
+        exit(1);
+    }
+    pthread_mutexattr_destroy(&mutex_attr);
+
+    /* Initialize Semaphore for Logging (Binary Semaphore / Mutex) */
+    if (sem_init(&queue->log_mutex, 1, 1) != 0) {
+        perror("sem init log_mutex");
+        exit(1);
     }
     
-    /* Definir tamanho */
-    if (ftruncate(shm_fd, shm_size) == -1) {
-        perror("ftruncate");
-        close(shm_fd);
-        return NULL;
+    /* Initialize Producer-Consumer Semaphores */
+    if (sem_init(&queue->empty_slots, 1, max_queue_size) != 0 ||
+        sem_init(&queue->filled_slots, 1, 0) != 0) {
+        perror("sem init");
+        exit(1);
     }
-    
-    /* Mapear na memória */
-    shared_data_t *data = mmap(NULL, shm_size, 
-                               PROT_READ | PROT_WRITE, 
-                               MAP_SHARED, shm_fd, 0);
-    if (data == MAP_FAILED) {
-        perror("mmap");
-        close(shm_fd);
-        return NULL;
+}
+
+/*
+ * Initialize Shared Statistics
+ * Purpose: Allocates a shared memory block for server metrics (requests, bytes, etc.).
+ *
+ * Logic:
+ * - Uses mmap for shared access.
+ * - Initializes a process-shared semaphore (stats->mutex) to protect counter updates.
+ */
+void init_shared_stats()
+{
+    void *mem_block = mmap(NULL, sizeof(server_stats_t), 
+                           PROT_READ | PROT_WRITE, 
+                           MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+
+    if (mem_block == MAP_FAILED) {
+        perror("mmap stats failed");
+        exit(1);
     }
-    
-    close(shm_fd);
-    
-    /* Inicializar estrutura */
-    memset(data, 0, sizeof(shared_data_t));
-    
-    /* Inicializar fila */
-    data->queue.capacity = (queue_size < SHARED_QUEUE_MAX_SIZE) ? 
-                          queue_size : SHARED_QUEUE_MAX_SIZE;
-    data->queue.size = 0;
-    data->queue.front = 0;
-    data->queue.rear = 0;
-    
-    /* Inicializar estatísticas */
-    stats_init(&data->stats);
-    
-    /* Inicializar mutex para memória compartilhada */
-    pthread_mutexattr_t attr;
-    pthread_mutexattr_init(&attr);
-    pthread_mutexattr_setpshared(&attr, PTHREAD_PROCESS_SHARED);
-    pthread_mutex_init(&data->stats_mutex, &attr);
-    pthread_mutexattr_destroy(&attr);
-    
-    strncpy(data->shm_name, "/httpserver_shm", sizeof(data->shm_name) - 1);
-    
-    return data;
-}
 
-/* Anexar a memória compartilhada existente */
-shared_data_t *shared_memory_attach(const char *shm_name) {
-    if (!shm_name) {
-        shm_name = "/httpserver_shm";
+    stats = (server_stats_t *)mem_block;
+
+    /* Zero out all counters */
+    stats->total_requests = 0;
+    stats->bytes_transferred = 0;
+    stats->status_200 = 0;
+    stats->status_404 = 0;
+    stats->status_500 = 0;
+    stats->active_connections = 0;
+    stats->average_response_time = 0;
+
+    /* Initialize binary semaphore (value 1) for mutual exclusion */
+    if (sem_init(&stats->mutex, 1, 1) != 0) {
+        perror("sem init stats");
+        exit(1);
     }
-    
-    int shm_fd = shm_open(shm_name, O_RDWR, 0);
-    if (shm_fd == -1) {
-        perror("shm_open");
-        return NULL;
+}
+
+/*
+ * Enqueue Connection (Producer)
+ * Purpose: Adds a client socket FD to the circular buffer.
+ * * Parameters:
+ * - client_socket: The file descriptor to add.
+ *
+ * Return:
+ * - 0 on success.
+ * - -1 if the queue is full (EAGAIN) or shutting down.
+ *
+ * Synchronization:
+ * 1. Checks 'shutting_down' flag.
+ * 2. Waits on 'empty_slots' (decrements available space). Uses trywait to avoid blocking if full.
+ * 3. Locks mutex to update 'tail' index safely.
+ * 4. Signals 'filled_slots' (increments item count).
+ */
+int enqueue(int client_socket) {
+    if (queue->shutting_down) {
+        return -1;
     }
-    
-    shared_data_t *data = mmap(NULL, sizeof(shared_data_t), 
-                               PROT_READ | PROT_WRITE, 
-                               MAP_SHARED, shm_fd, 0);
-    close(shm_fd);
-    
-    if (data == MAP_FAILED) {
-        perror("mmap");
-        return NULL;
+
+    /* Non-blocking wait for a free slot */
+    if (sem_trywait(&queue->empty_slots) != 0) {
+        if (errno == EAGAIN) {
+            return -1; /* Queue Full */
+        }
+        perror("sem_trywait");
+        return -1; 
     }
+
+    pthread_mutex_lock(&queue->mutex);
+
+    queue->connections[queue->tail] = client_socket;
+    queue->tail = (queue->tail + 1) % queue->max_size;
+
+    pthread_mutex_unlock(&queue->mutex);
+    sem_post(&queue->filled_slots);
     
-    return data;
+    return 0; 
 }
 
-/* Destruir memória compartilhada */
-void shared_memory_destroy(shared_data_t *data) {
-    if (!data) return;
-    
-    /* Destruir mutex */
-    pthread_mutex_destroy(&data->stats_mutex);
-    
-    /* Desmapear */
-    munmap(data, sizeof(shared_data_t));
-    
-    /* Remover segmento */
-    shm_unlink(data->shm_name);
-}
+/*
+ * Dequeue Connection (Consumer)
+ * Purpose: Removes and returns a client socket FD from the circular buffer.
+ *
+ * Return:
+ * - Valid file descriptor on success.
+ * - -1 if the queue is shutting down and empty.
+ *
+ * Synchronization:
+ * 1. Waits on 'filled_slots' (blocks until data is available).
+ * 2. Locks mutex to update 'head' index safely.
+ * 3. Signals 'empty_slots' (increments available space).
+ */
+int dequeue() {
+    sem_wait(&queue->filled_slots);
+    pthread_mutex_lock(&queue->mutex);
 
-/* Operações de fila sincronizadas */
-int shared_queue_enqueue(shared_queue_t *queue, int socket_fd) {
-    if (!queue || queue->size >= queue->capacity) {
-        return -1; /* Fila cheia */
+    /* Check if we woke up due to shutdown signal */
+    if (queue->shutting_down && queue->head == queue->tail) {
+        pthread_mutex_unlock(&queue->mutex);
+        return -1;
     }
-    
-    queue->sockets[queue->rear] = socket_fd;
-    queue->rear = (queue->rear + 1) % queue->capacity;
-    queue->size++;
-    
-    return 0;
-}
 
-int shared_queue_dequeue(shared_queue_t *queue) {
-    if (!queue || queue->size == 0) {
-        return -1; /* Fila vazia */
-    }
-    
-    int socket_fd = queue->sockets[queue->front];
-    queue->front = (queue->front + 1) % queue->capacity;
-    queue->size--;
-    
-    return socket_fd;
-}
+    int client_socket = queue->connections[queue->head];
+    queue->head = (queue->head + 1) % queue->max_size;
 
-int shared_queue_is_empty(const shared_queue_t *queue) {
-    return (!queue || queue->size == 0);
-}
-
-int shared_queue_is_full(const shared_queue_t *queue) {
-    return (queue && queue->size >= queue->capacity);
-}
-
-/* Funções de estatísticas sincronizadas */
-void shared_stats_update_request(shared_data_t *data, int status_code, 
-                                size_t bytes_sent, double response_time_ms) {
-    if (!data) return;
+    pthread_mutex_unlock(&queue->mutex);
+    sem_post(&queue->empty_slots);
     
-    pthread_mutex_lock(&data->stats_mutex);
-    stats_update_request(&data->stats, status_code, bytes_sent, response_time_ms);
-    pthread_mutex_unlock(&data->stats_mutex);
-}
-
-void shared_stats_update_connection(shared_data_t *data, int is_new_connection) {
-    if (!data) return;
-    
-    pthread_mutex_lock(&data->stats_mutex);
-    stats_update_request(&data->stats, 
-                        is_new_connection ? 0 : -1, /* 0 = nova, -1 = fechada */
-                        0, 0.0);
-    pthread_mutex_unlock(&data->stats_mutex);
-}
-
-void shared_stats_update_cache(shared_data_t *data, int cache_hit) {
-    if (!data) return;
-    
-    pthread_mutex_lock(&data->stats_mutex);
-    stats_update_cache(&data->stats, cache_hit);
-    pthread_mutex_unlock(&data->stats_mutex);
-}
-
-void shared_stats_update_error(shared_data_t *data) {
-    if (!data) return;
-    
-    pthread_mutex_lock(&data->stats_mutex);
-    stats_update_error(&data->stats);
-    pthread_mutex_unlock(&data->stats_mutex);
-}
-
-/* Debugging */
-void shared_memory_print_status(const shared_data_t *data) {
-    if (!data) {
-        printf("Shared memory: NULL\n");
-        return;
-    }
-    
-    printf("Shared Memory Status:\n");
-    printf("  Queue: %d/%d connections\n", 
-           data->queue.size, data->queue.capacity);
-    printf("  Stats: %ld total requests\n", data->stats.total_requests);
-}
-
-void shared_memory_print_stats(const shared_data_t *data) {
-    if (!data) return;
-    
-    pthread_mutex_lock(&data->stats_mutex);
-    stats_print(&data->stats);
-    pthread_mutex_unlock(&data->stats_mutex);
+    return client_socket;
 }
