@@ -1,6 +1,6 @@
 # Concurrent HTTP Server
 
-**Authors:**
+**Authors:**<br>
 Inês Batista, 124877<br>
 Maria Quinteiro, 124996
 
@@ -64,8 +64,6 @@ make debug    # Build with debug symbols
 make release  # Build with optimizations (-O3)
 ```
 
----
-
 ## Configuration
 
 The server is configured via `server.conf` or Environment Variables.
@@ -94,7 +92,6 @@ The server is configured via `server.conf` or Environment Variables.
 *   **Dashboard:** Open `http://localhost:8080/dashboard.html` to see real-time stats.
 *   **Logs:** Watch traffic with `tail -f access.log`.
 
----
 
 ## Testing
 
