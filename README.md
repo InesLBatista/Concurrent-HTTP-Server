@@ -1,261 +1,146 @@
-# Multi-Threaded Web Server with IPC and Semaphores
+# Concurrent HTTP Server
 
-## Authors
-Inês Batista, 124877<br>
-Maria Quinteiro, 124996
+**Authors:**
+*   Inês Batista, 124877
+*   Maria Quinteiro, 124996
 
-## Description
-Concurrent HTTP Server is a high-performance, multi-process, multi-threaded HTTP/1.1 web server developed for the Operating Systems course. This project demonstrates advanced systems programming concepts by implementing a production-grade web server capable of handling thousands of concurrent connections efficiently.
+## Introduction
+The **Concurrent HTTP Server** is a high-performance, multi-process, and multi-threaded web server developed for the Operating Systems course. It is designed to handle thousands of concurrent connections efficiently by leveraging advanced systems programming concepts.
 
-The server follows a master-worker architecture with shared memory inter-process communication and comprehensive synchronization mechanisms to ensure thread safety and optimal resource utilization under heavy load.
+The server implements a **Hybrid Architecture**, combining the stability of multi-processing with the efficiency of multi-threading. It uses **UNIX Domain Sockets** for fast Inter-Process Communication (IPC) and a custom **Producer-Consumer** model to distribute load.
 
-The full design document is available here: [design.pdf](./docs/design.pdf)
+Full documentation:
+*   [Design Document](./docs/design.pdf)
+*   [Technical Report](./docs/report.pdf)
+*   [User Manual](./docs/user_manual.pdf)
+
+---
+
+## System Architecture
+
+### Master-Worker Model
+The system follows a strict **Master-Worker** pattern:
+1.  **Master Process:** Responsible for initialization, parsing configuration, and accepting incoming connections. It acts as the **Producer**.
+2.  **Worker Processes:** A pool of pre-forked processes that handle the actual HTTP request processing. They act as **Consumers**.
+
+### Inter-Process Communication (IPC)
+Instead of a traditional shared memory queue for connections, the server uses **UNIX Domain Sockets** with the `SCM_RIGHTS` mechanism.
+*   The Master accepts a connection and sends the file descriptor (FD) to a Worker via a dedicated socket pair.
+*   This allows for **Zero-Copy** handoff and utilizes the kernel's internal buffering for synchronization.
+
+### Thread Pool
+Each Worker process maintains its own **Thread Pool**.
+*   A main thread receives FDs from the Master and pushes them to a local queue.
+*   Worker threads pop FDs from the queue and process the HTTP requests.
+*   This design ensures that a single blocking operation (like disk I/O) does not stall the entire worker.
+
+---
+
+## Features
+
+### Core Features
+*   **Concurrent Handling:** Supports thousands of simultaneous clients.
+*   **Static File Serving:** Serves HTML, CSS, JS, Images, etc.
+*   **Thread-Safe Logging:** Asynchronous logging to `access.log` using a ring buffer and flush thread.
+*   **LRU File Cache:** In-memory cache with **Reader-Writer Locks** to speed up access to frequently requested files.
+*   **Global Statistics:** Real-time metrics stored in Shared Memory.
+
+### Bonus Features
+1.  **HTTP Keep-Alive:** Supports persistent connections, allowing multiple requests over a single TCP connection.
+2.  **Range Requests:** Supports the `Range` header for partial content delivery (e.g., video streaming, resumable downloads).
+3.  **Virtual Host Support:** Serves different content based on the `Host` header (e.g., `site1.com` vs `site2.com`).
+4.  **Real-Time Dashboard:** A `/stats` endpoint provides JSON metrics for a live web dashboard.
+
+---
+
+## Synchronization Mechanisms
+
+The server employs a tiered synchronization strategy to ensure data integrity without sacrificing performance:
+
+| Resource | Mechanism | Description |
+| :--- | :--- | :--- |
+| **Global Statistics** | **POSIX Named Semaphores** | Ensures atomic updates to shared memory counters across processes. |
+| **File Cache** | **Reader-Writer Locks** (`pthread_rwlock_t`) | Allows multiple concurrent readers but exclusive access for writers (eviction/insertion). |
+| **Thread Pool** | **Mutexes & Condition Variables** | Protects the local request queue. Uses `pthread_cond_signal` to avoid "thundering herd". |
+| **Logging** | **Mutexes** | Protects the log ring buffer during writes. |
+
+---
 
 ## Compilation
-### Quick Start
+
+### Prerequisites
+*   Linux Environment
+*   GCC Compiler
+*   Make
+
+### Build Commands
 ```bash
-# Build the server
-make
-# Clean build artifacts
-make clean
-# Rebuild from scratch
-make clean && make
-# Build and run
-make run
+make          # Build the server
+make clean    # Remove artifacts
+make run      # Build and run
+make debug    # Build with debug symbols
+make release  # Build with optimizations (-O3)
 ```
-### Build Targets
-```bash
-make all # Build server executable (default)
-make clean # Remove object files and executable
-make run # Build and start server
-make test # Build and run test suite
-make debug # Build with debug symbols (-g)
-make release # Build with optimizations (-O3)
-make valgrind # Build and run under Valgrind
-make helgrind # Build and run under Helgrind
-```
-### Manual Compilation
-```bash
-# Compile all source files
-gcc -Wall -Wextra -pthread -lrt -o server \
-src/main.c \
-src/master.c \
-src/worker.c \
-src/http.c \
-src/thread_pool.c \
-src/cache.c \
-src/logger.c \
-src/stats.c \
-src/config.c
-# Run the server
-./server
-```
-### Compiler Flags Explained
-- `-Wall -Wextra`: Enable all warnings
-- `-pthread`: Link pthread library
-- `-lrt`: Link POSIX real-time extensions (for semaphores)
-- `-O3`: Optimization level 3 (for release builds)
-- `-g`: Debug symbols (for debugging)
-- `-fsanitize=thread`: Thread sanitizer (for race detection)
+
+---
 
 ## Configuration
-### Configuration File (server.conf)
-The server reads configuration from `server.conf` in the current
-directory:
+
+The server is configured via `server.conf` or Environment Variables.
+
+| Parameter | Env Variable | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `PORT` | `HTTP_PORT` | `8080` | Listening Port |
+| `NUM_WORKERS` | `HTTP_WORKERS` | `4` | Number of Worker Processes |
+| `THREADS_PER_WORKER` | `HTTP_THREADS` | `10` | Threads per Worker |
+| `DOCUMENT_ROOT` | `HTTP_ROOT` | `./www` | Root directory for files |
+| `CACHE_SIZE_MB` | `HTTP_CACHE_SIZE` | `10` | Cache size limit (MB) |
+| `LOG_FILE` | `HTTP_LOG_FILE` | `access.log` | Log file path |
+
+**Example `server.conf`:**
 ```ini
-# Server Configuration File
-# Network settings
-PORT=8080 # Port to listen on
-TIMEOUT_SECONDS=30 # Connection timeout
-# File system
-DOCUMENT_ROOT=/var/www/html # Root directory for serving files
-# Process architecture
-NUM_WORKERS=4 # Number of worker processes
-THREADS_PER_WORKER=10 # Threads per worker
-# Queue management
-MAX_QUEUE_SIZE=100 # Connection queue size
-# Caching
-CACHE_SIZE_MB=10 # Cache size per worker (MB)
-# Logging
-LOG_FILE=access.log # Access log file path
-LOG_LEVEL=INFO # Log level: DEBUG, INFO, WARN, ERROR
+PORT=8080
+NUM_WORKERS=4
+THREADS_PER_WORKER=10
+DOCUMENT_ROOT=./www
+CACHE_SIZE_MB=10
 ```
-### Configuration Parameters
-| Parameter | Default | Description |
-|--------------------|------------|----------------------------------|
-| PORT | 8080 | TCP port for HTTP server |
-| DOCUMENT_ROOT | ./www | Root directory for serving files |
-| NUM_WORKERS | 4 | Number of worker processes |
-| THREADS_PER_WORKER | 10 | Thread pool size per worker |
-| MAX_QUEUE_SIZE | 100 | Connection queue capacity |
-| CACHE_SIZE_MB | 10 | Maximum cache size per worker |
-| LOG_FILE | access.log | Path to access log |
-| TIMEOUT_SECONDS | 30 | Connection timeout |
-### Environment Variables
-```bash
-# Override configuration via environment
-export HTTP_PORT=8080
-export HTTP_WORKERS=4
-export HTTP_THREADS=10
-./server
-```
+
+---
 
 ## Usage
+
 ### Starting the Server
 ```bash
-# Start with default configuration
-./server
-# Start with custom configuration file
-./server -c /path/to/server.conf
-# Start on specific port
-./server -p 9090
-# Start with verbose logging
-./server -v
-# Start in background (daemon mode)
-./server -d
-```
-### Command-Line Options
-```
-Usage: ./server [OPTIONS]
-Options:
--c, --config PATH Configuration file path (default: ./server.conf)
--p, --port PORT Port to listen on (default: 8080)
--w, --workers NUM Number of worker processes (default: 4)
--t, --threads NUM Threads per worker (default: 10)
--d, --daemon Run in background
--v, --verbose Enable verbose logging
--h, --help Show this help message
---version Show version information
-```
-### Accessing the Server
-```bash
-# Open in browser
-firefox http://localhost:8080
-# Using curl
-curl http://localhost:8080/index.html
-# View headers only (HEAD request)
-curl -I http://localhost:8080/index.html
-# Download file
-wget http://localhost:8080/document.pdf
-```
-### Stopping the Server
-```bash
-# Graceful shutdown (from server terminal)
-Ctrl+C
-# Send SIGTERM
-kill $(pgrep -f "./server")
-# Force kill (not recommended)
-kill -9 $(pgrep -f "./server")
-```
-### Viewing Logs
-```bash
-# Follow access log in real-time
-tail -f access.log
-# View last 100 entries
-tail -n 100 access.log
-# Search for errors
-grep "500\|404" access.log
-# Count requests by status code
-awk '{print $9}' access.log | sort | uniq -c
-```
-### Monitoring Statistics
-Statistics are displayed every 30 seconds on stdout:
-```
-========================================
-SERVER STATISTICS
-========================================
-Uptime: 120 seconds
-Total Requests: 1,542
-Successful (2xx): 1,425
-Client Errors (4xx): 112
-Server Errors (5xx): 5
-Bytes Transferred: 15,728,640
-Average Response Time: 8.3 ms
-Active Connections: 12
-Cache Hit Rate: 82.4%
-========================================
+./server                    # Default config
+./server -c my.conf         # Custom config file
+./server -p 9090            # Override port
+./server -d                 # Run as Daemon (background)
+./server -v                 # Verbose logging
 ```
 
+### Monitoring
+*   **Dashboard:** Open `http://localhost:8080/dashboard.html` to see real-time stats.
+*   **Logs:** Watch traffic with `tail -f access.log`.
+
+---
+
 ## Testing
-### Functional Tests
+
+The project includes a comprehensive test suite.
+
 ```bash
-# Run all tests
-make test
-# Basic functionality test
-curl http://localhost:8080/index.html
-# Test HEAD method
-curl -I http://localhost:8080/index.html
-# Test 404 error
-curl http://localhost:8080/nonexistent.html
-# Test different file types
-curl http://localhost:8080/style.css # CSS
-curl http://localhost:8080/script.js # JavaScript
-curl http://localhost:8080/image.png # Image
+make test       # Run functional tests
 ```
-### Load Testing
+
+### Performance & Stress Testing
 ```bash
-# Basic load test (1000 requests, 10 concurrent)
-ab -n 1000 -c 10 http://localhost:8080/index.html
-# High concurrency test (10000 requests, 100 concurrent)
-ab -n 10000 -c 100 http://localhost:8080/index.html
-# Sustained load test (5 minutes)
-ab -t 300 -c 50 http://localhost:8080/
-# Test multiple files
-for file in index.html style.css script.js; do
-ab -n 1000 -c 50 http://localhost:8080/$file
-done
-```
-### Concurrency Testing
-```bash
-# Parallel requests with curl
-for i in {1..100}; do
-curl -s http://localhost:8080/index.html &
-done
-wait
-# Parallel requests with different files
-for i in {1..50}; do
-curl -s http://localhost:8080/page$((i % 10)).html &
-done
-wait
-```
-### Memory Leak Detection
-```bash
-# Run server under Valgrind
+# Basic Load Test (Apache Benchmark)
+ab -n 1000 -c 100 http://localhost:8080/index.html
+
+# Check for Memory Leaks
 make valgrind
-# Or manually:
-valgrind --leak-check=full \
---show-leak-kinds=all \
---track-origins=yes \
---log-file=valgrind.log \
-./server
-# In another terminal, generate traffic
-ab -n 1000 -c 50 http://localhost:8080/
-# Stop server and check valgrind.log
-```
-### Race Condition Detection
-```bash
-# Run server under Helgrind
+
+# Check for Race Conditions
 make helgrind
-# Or manually:
-valgrind --tool=helgrind \
---log-file=helgrind.log \
-./server
-# Generate concurrent traffic
-ab -n 5000 -c 100 http://localhost:8080/
-# Check helgrind.log for data races
-```
-### Performance Testing
-```bash
-# Measure cache effectiveness
-# First request (cache miss)
-time curl -s http://localhost:8080/large.html > /dev/null
-# Subsequent requests (cache hit)
-for i in {1..10}; do
-time curl -s http://localhost:8080/large.html > /dev/null
-done
-# Monitor server resource usage
-top -p $(pgrep -f "./server")
-# Monitor worker processes
-watch -n 1 'pgrep -P $(pgrep -f "./server") | xargs ps -o
-pid,ppid,nlwp,cmd'
 ```
