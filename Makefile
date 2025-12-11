@@ -1,13 +1,14 @@
 CC = gcc
-CFLAGS = -Wall -Wextra -Werror -pthread -lrt -g -std=c11
-TARGET = httpserver
+CFLAGS = -Wall -Wextra -Werror -pthread -lrt -std=c11
+TARGET = server
 SRCDIR = src
 OBJDIR = obj
 
 SOURCES = $(wildcard $(SRCDIR)/*.c)
 OBJECTS = $(patsubst $(SRCDIR)/%.c,$(OBJDIR)/%.o,$(SOURCES))
 
-all: $(TARGET)
+# Default build (release)
+all: release
 
 $(TARGET): $(OBJECTS)
 	$(CC) $(CFLAGS) -o $@ $^
@@ -28,11 +29,19 @@ test: $(TARGET)
 	@chmod +x tests/test_load.sh
 	@./tests/test_load.sh
 
-valgrind: $(TARGET)
-	valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes ./$(TARGET)
+# Debug build
+debug: CFLAGS += -g -fsanitize=thread
+debug: clean $(TARGET)
 
-helgrind: $(TARGET)
-	valgrind --tool=helgrind ./$(TARGET)
+# Release build
+release: CFLAGS += -O3
+release: $(TARGET)
+
+valgrind: debug
+	valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes --log-file=valgrind.log ./$(TARGET)
+
+helgrind: debug
+	valgrind --tool=helgrind --log-file=helgrind.log ./$(TARGET)
 
 benchmark: $(TARGET)
 	@echo "Starting load test..."
@@ -49,4 +58,4 @@ install_deps:
 test_concurrent: tests/test_concurrent.c
 	$(CC) $(CFLAGS) -o tests/test_concurrent tests/test_concurrent.c
 
-.PHONY: all clean run test valgrind helgrind benchmark install_deps test_concurrent
+.PHONY: all clean run test valgrind helgrind benchmark install_deps test_concurrent debug release

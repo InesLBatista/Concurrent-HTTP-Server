@@ -17,6 +17,9 @@ typedef struct
     int keep_alive_timeout;
 } server_config_t;
 
+// Function prototypes
 int load_config(const char *filename, server_config_t *config);
+void parse_env_vars(server_config_t *config);
+void parse_arguments(int argc, char *argv[], server_config_t *config);
 
 #endif

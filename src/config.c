@@ -63,3 +63,22 @@ int load_config(const char *filename, server_config_t *config)
     fclose(fp);
     return 0;
 }
+
+void parse_env_vars(server_config_t *config) {
+    char *val;
+
+    if ((val = getenv("HTTP_PORT"))) config->port = atoi(val);
+    if ((val = getenv("HTTP_WORKERS"))) config->num_workers = atoi(val);
+    if ((val = getenv("HTTP_THREADS"))) config->threads_per_worker = atoi(val);
+    if ((val = getenv("HTTP_ROOT"))) {
+        strncpy(config->document_root, val, sizeof(config->document_root) - 1);
+        config->document_root[sizeof(config->document_root) - 1] = '\0';
+    }
+    if ((val = getenv("HTTP_QUEUE"))) config->max_queue_size = atoi(val);
+    if ((val = getenv("HTTP_CACHE"))) config->cache_size_mb = atoi(val);
+    if ((val = getenv("HTTP_LOG"))) {
+        strncpy(config->log_file, val, sizeof(config->log_file) - 1);
+        config->log_file[sizeof(config->log_file) - 1] = '\0';
+    }
+    if ((val = getenv("HTTP_TIMEOUT"))) config->timeout_seconds = atoi(val);
+}

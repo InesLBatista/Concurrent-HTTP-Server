@@ -11,7 +11,7 @@
 <body>
 
     <header>
-        <div class="logo">ConcurrentHTTP v1.0</div>
+        <div class="logo">Concurrent HTTP Server v1.0</div>
     </header>
 
     <div class="container">
@@ -24,11 +24,16 @@
         <div class="grid">
             <div class="card">
                 <h3>Architecture</h3>
-                <p>Multi-Process Master/Worker model with Thread Pools.</p>
+                <p>Robust <strong>Master-Worker</strong> design using <strong>Shared Memory</strong> and
+                    <strong>Semaphores</strong> for IPC. Each worker manages a dynamic <strong>Thread Pool</strong> to
+                    efficiently process HTTP requests in parallel.
+                </p>
             </div>
             <div class="card">
                 <h3>Performance</h3>
-                <p>High throughput handling for concurrent connections.</p>
+                <p>Optimized for high concurrency with <strong>Non-blocking I/O</strong> and an <strong>LRU File
+                        Cache</strong>. Capable of handling thousands of simultaneous connections with minimal latency.
+                </p>
             </div>
             <div class="card">
                 <h3>Interactivity Test</h3>
@@ -37,10 +42,30 @@
                 <div id="ping-result" class="result">Waiting for input...</div>
             </div>
         </div>
+
+        <h2 style="margin-top: 40px; color: #2c3e50; border-bottom: 2px solid #eee; padding-bottom: 10px;">Project
+            Documentation</h2>
+        <div class="grid">
+            <div class="card">
+                <h3>Design Document</h3>
+                <p>Technical architecture and design decisions.</p>
+                <a href="docs/design.pdf" target="_blank"><button>View PDF</button></a>
+            </div>
+            <div class="card">
+                <h3>Final Report</h3>
+                <p>Project analysis, results and conclusions.</p>
+                <a href="docs/report.pdf" target="_blank"><button>View PDF</button></a>
+            </div>
+            <div class="card">
+                <h3>User Manual</h3>
+                <p>Guide on how to configure and use the server.</p>
+                <a href="docs/user_manual.pdf" target="_blank"><button>View PDF</button></a>
+            </div>
+        </div>
     </div>
 
     <footer>
-        &copy; 2025 University of Aveiro - Operating Systems Project
+        &copy; Inês Batista, 124877 & Maria Quinteiro, 124996
     </footer>
 
     <script src="script.js"></script>

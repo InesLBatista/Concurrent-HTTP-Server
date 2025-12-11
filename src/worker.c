@@ -405,8 +405,10 @@ void handle_client(int client_socket)
                      fseek(fp, range_start, SEEK_SET);
                      char *chunk = malloc(content_length);
                      if (chunk) {
-                         fread(chunk, 1, content_length, fp);
-                         send(client_socket, chunk, content_length, 0);
+                         size_t rb = fread(chunk, 1, content_length, fp);
+                         if (rb > 0) {
+                            send(client_socket, chunk, rb, 0);
+                         }
                          free(chunk);
                      }
                      fclose(fp);

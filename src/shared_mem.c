@@ -33,9 +33,7 @@ void init_shared_queue(int max_queue_size)
     size_t total_size = sizeof(connection_queue_t) + queue_data_size;
 
     /* Allocate shared memory */
-    void *mem_block = mmap(NULL, total_size, 
-                           PROT_READ | PROT_WRITE, 
-                           MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+    void *mem_block = mmap(NULL, total_size, PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
 
     if (mem_block == MAP_FAILED) {
         perror("mmap failed");
@@ -43,7 +41,6 @@ void init_shared_queue(int max_queue_size)
     }
 
     queue = (connection_queue_t *)mem_block;
-
     /* Point the data array to the memory immediately following the struct */
     queue->connections = (int *)(queue + 1);
 
@@ -52,12 +49,11 @@ void init_shared_queue(int max_queue_size)
     queue->tail = 0;
     queue->max_size = max_queue_size;
     queue->shutting_down = 0;
-
+    
     /* Initialize Process-Shared Mutex for the Queue */
     pthread_mutexattr_t mutex_attr;
     pthread_mutexattr_init(&mutex_attr);
     pthread_mutexattr_setpshared(&mutex_attr, PTHREAD_PROCESS_SHARED);
-
     if (pthread_mutex_init(&queue->mutex, &mutex_attr) != 0) {
         perror("mutex init");
         exit(1);
@@ -69,7 +65,6 @@ void init_shared_queue(int max_queue_size)
         perror("sem init log_mutex");
         exit(1);
     }
-    
     /* Initialize Producer-Consumer Semaphores */
     if (sem_init(&queue->empty_slots, 1, max_queue_size) != 0 ||
         sem_init(&queue->filled_slots, 1, 0) != 0) {
@@ -187,3 +182,4 @@ int dequeue() {
     
     return client_socket;
 }
+

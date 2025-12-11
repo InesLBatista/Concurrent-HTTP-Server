@@ -1,6 +1,6 @@
 #!/bin/bash
 
-SERVER_BIN="./httpserver"
+SERVER_BIN="./server"
 TEST_CONCURRENT_BIN="./tests/test_concurrent"
 PORT=8080
 URL="http://localhost:$PORT"
